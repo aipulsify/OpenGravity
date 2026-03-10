@@ -8,6 +8,7 @@ let initialized = false;
 async function ensureInit() {
   if (!initialized) {
     await initDatabase();
+    await bot.init();
     initialized = true;
   }
 }
