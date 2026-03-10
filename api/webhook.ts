@@ -19,8 +19,20 @@ const handler = async (req: VercelRequest, res: VercelResponse) => {
   }
 
   await ensureInit();
-  const cb = webhookCallback(bot, 'express');
-  await cb(req as any, res as any);
+
+  try {
+    const update = req.body;
+    console.log('Received Telegram Update:', JSON.stringify(update));
+    
+    if (update) {
+      await bot.handleUpdate(update);
+    }
+  } catch (err: any) {
+    console.error('Error handling update:', err.message);
+  } finally {
+    // Vercel requires sending a response to terminate the function cleanly
+    res.status(200).send('OK');
+  }
 };
 
 export default handler;
