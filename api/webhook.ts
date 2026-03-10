@@ -19,7 +19,7 @@ const handler = async (req: VercelRequest, res: VercelResponse) => {
   }
 
   await ensureInit();
-  const cb = webhookCallback(bot, 'http');
+  const cb = webhookCallback(bot, 'express');
   await cb(req as any, res as any);
 };
 
