@@ -5,6 +5,7 @@ import { transcribeAudio } from '../agent/llm.js';
 import { writeFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { markdownToTelegramHtml } from '../utils/format.js';
 
 export const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
 
@@ -35,7 +36,13 @@ bot.on('message:text', async (ctx) => {
 
     const response = await processUserMessage(ctx.from.id, ctx.message.text);
     
-    await ctx.reply(response);
+    try {
+      const htmlResponse = markdownToTelegramHtml(response);
+      await ctx.reply(htmlResponse, { parse_mode: 'HTML' });
+    } catch (parseError) {
+      console.warn('Failed to send HTML format, falling back to plain text:', parseError);
+      await ctx.reply(response);
+    }
   } catch (error) {
     console.error('Error processing message:', error);
     await ctx.reply("Sorry, I encountered an internal error while processing that request.");
@@ -85,7 +92,14 @@ bot.on(['message:voice', 'message:audio'], async (ctx) => {
 
     // Process transcription as a normal message
     const botResponse = await processUserMessage(ctx.from.id, transcription);
-    await ctx.reply(botResponse);
+    
+    try {
+      const htmlResponse = markdownToTelegramHtml(botResponse);
+      await ctx.reply(htmlResponse, { parse_mode: 'HTML' });
+    } catch (parseError) {
+      console.warn('Failed to send HTML format, falling back to plain text:', parseError);
+      await ctx.reply(botResponse);
+    }
 
   } catch (error: any) {
     console.error('Error processing voice message:', error);
