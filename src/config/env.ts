@@ -25,6 +25,9 @@ export const env = {
   GROQ_API_KEY: process.env.GROQ_API_KEY!,
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+  ZAI_API_KEY: process.env.ZAI_API_KEY || '',
+  ZAI_API_URL: process.env.ZAI_API_URL || 'https://api.z.ai/v1',
+  ZAI_MODEL: process.env.ZAI_MODEL || 'meta-llama/llama-3.3-70b-instruct',
   CLIENTVERSE_API_URL: process.env.CLIENTVERSE_API_URL!,
   CLIENTVERSE_API_KEY: process.env.CLIENTVERSE_API_KEY!,
 };

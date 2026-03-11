@@ -36,6 +36,36 @@ async function fetchFromOpenRouter(messages: ChatCompletionMessageParam[], tools
   return data.choices[0].message;
 }
 
+async function fetchFromZai(messages: ChatCompletionMessageParam[], tools: ChatCompletionTool[]) {
+  if (!env.ZAI_API_KEY) throw new Error("No Z.ai API key found");
+  
+  const payload: any = {
+    model: env.ZAI_MODEL,
+    messages
+  };
+  
+  if (tools.length > 0) {
+    payload.tools = tools;
+  }
+
+  const response = await fetch(`${env.ZAI_API_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.ZAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Z.ai Error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message;
+}
+
 export async function getLLMResponse(messages: ChatCompletionMessageParam[]) {
   const definitions = getAllToolDefinitions();
   const tools: ChatCompletionTool[] = definitions.map(def => ({
@@ -59,8 +89,13 @@ export async function getLLMResponse(messages: ChatCompletionMessageParam[]) {
     try {
       return await fetchFromOpenRouter(messages, tools);
     } catch (fallbackError) {
-      console.error('Fallback failed', fallbackError);
-      throw error;
+      console.error('OpenRouter fallback failed, attempting Z.ai', fallbackError);
+      try {
+        return await fetchFromZai(messages, tools);
+      } catch (zaiError) {
+        console.error('Z.ai fallback failed', zaiError);
+        throw error; // Throw original Groq error to trace back
+      }
     }
   }
 }
