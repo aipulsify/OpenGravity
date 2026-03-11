@@ -88,9 +88,12 @@ const gmailSendDef: ToolDefinition = {
 registerTool({
   definition: gmailSendDef,
   execute: async ({ to, subject, body, account }) => {
+    setupGogAuth();
     try {
-      const accountFlag = account ? `--account "${account}"` : '';
-      const output = execSync(`.\\gog.exe gmail send --to "${to}" --subject "${subject}" --body-file - ${accountFlag}`, {
+      const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
+      const accountFlag = resolvedAccount ? `--account "${resolvedAccount}"` : '';
+      
+      const output = execSync(`${GOG_BIN} gmail send --to "${to}" --subject "${subject}" --body-file - ${accountFlag}`, {
         input: body,
         encoding: 'utf-8'
       });
