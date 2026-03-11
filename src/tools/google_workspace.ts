@@ -14,12 +14,22 @@ const GOG_CONFIG_DIR = IS_WINDOWS
   ? `${process.env.APPDATA}\\gogcli`
   : '/tmp/gogcli';
 
-// On Linux (Vercel): write token from env var to /tmp so gog can find it
+// On Linux (Vercel): write credentials and token from env vars to /tmp so gog can find them
 function setupGogAuth() {
-  if (!IS_WINDOWS && process.env.GOG_TOKEN_JSON) {
+  if (!IS_WINDOWS) {
     try {
       if (!existsSync(GOG_CONFIG_DIR)) mkdirSync(GOG_CONFIG_DIR, { recursive: true });
-      writeFileSync(join(GOG_CONFIG_DIR, 'credentials.json'), process.env.GOG_TOKEN_JSON);
+      
+      // 1. Write the GCP Client ID Credentials
+      if (process.env.GOG_CLIENT_CREDENTIALS_JSON) {
+        writeFileSync(join(GOG_CONFIG_DIR, 'credentials.json'), process.env.GOG_CLIENT_CREDENTIALS_JSON);
+      }
+      
+      // 2. Write the User Session Token using the account name
+      if (process.env.GOG_TOKEN_JSON && process.env.GOG_ACCOUNT) {
+        const tokenFileName = `token_${process.env.GOG_ACCOUNT}.json`;
+        writeFileSync(join(GOG_CONFIG_DIR, tokenFileName), process.env.GOG_TOKEN_JSON);
+      }
     } catch (e) {
       console.warn('Could not write gog credentials:', e);
     }
