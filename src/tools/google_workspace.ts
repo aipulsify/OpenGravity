@@ -21,7 +21,14 @@ function setupGogAuth(accountToUse?: string) {
       if (!existsSync(GOG_CONFIG_DIR)) mkdirSync(GOG_CONFIG_DIR, { recursive: true });
       
       const resolvedTargetAccount = accountToUse || process.env.GOG_ACCOUNT;
-      const envOpts = { env: { ...process.env, XDG_CONFIG_HOME: '/tmp/gogcli', HOME: '/tmp' } };
+      const envOpts = { 
+        env: { 
+          ...process.env, 
+          XDG_CONFIG_HOME: '/tmp/gogcli', 
+          HOME: '/tmp',
+          GOG_KEYRING_PASSWORD: 'open_gravity_dummy_pass'
+        } 
+      };
 
       // Force gogcli to use a file-based keyring instead of D-Bus Secret Service on Lambda
       execSync(`${GOG_BIN} config set keyring_backend file`, envOpts);
@@ -60,7 +67,12 @@ async function runGogCommand(command: string, account?: string): Promise<string>
     const accountFlag = resolvedAccount ? `--account "${resolvedAccount}"` : '';
     const fullCommand = `${GOG_BIN} ${command} ${accountFlag}`.trim();
     const { stdout, stderr } = await execPromise(fullCommand, {
-      env: { ...process.env, XDG_CONFIG_HOME: '/tmp' }
+      env: { 
+        ...process.env, 
+        XDG_CONFIG_HOME: '/tmp/gogcli', 
+        HOME: '/tmp',
+        GOG_KEYRING_PASSWORD: 'open_gravity_dummy_pass'
+      }
     });
     if (stderr) {
       console.warn(`gog stderr: ${stderr}`);
@@ -125,7 +137,12 @@ registerTool({
       const output = execSync(`${GOG_BIN} gmail send --to "${to}" --subject "${subject}" --body-file - ${accountFlag}`, {
         input: body,
         encoding: 'utf-8',
-        env: { ...process.env, XDG_CONFIG_HOME: '/tmp' }
+        env: { 
+          ...process.env, 
+          XDG_CONFIG_HOME: '/tmp/gogcli', 
+          HOME: '/tmp',
+          GOG_KEYRING_PASSWORD: 'open_gravity_dummy_pass'
+        }
       });
       return output || 'Email sent successfully.';
     } catch (error: any) {
