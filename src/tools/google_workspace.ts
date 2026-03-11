@@ -15,26 +15,22 @@ const GOG_CONFIG_DIR = IS_WINDOWS
   : '/tmp/gogcli';
 
 // On Linux (Vercel): write credentials and token from env vars to /tmp so gog can find them
-function setupGogAuth() {
+function setupGogAuth(accountToUse?: string) {
   if (!IS_WINDOWS) {
     try {
       if (!existsSync(GOG_CONFIG_DIR)) mkdirSync(GOG_CONFIG_DIR, { recursive: true });
       
-      console.log(`[setupGogAuth] Checking environment variables...`);
-      console.log(`[setupGogAuth] GOG_CLIENT_CREDENTIALS_JSON exists: ${!!process.env.GOG_CLIENT_CREDENTIALS_JSON}`);
-      console.log(`[setupGogAuth] GOG_TOKEN_JSON exists: ${!!process.env.GOG_TOKEN_JSON}`);
-      
+      const resolvedTargetAccount = accountToUse || process.env.GOG_ACCOUNT;
+
       // 1. Write the GCP Client ID Credentials
       if (process.env.GOG_CLIENT_CREDENTIALS_JSON) {
         writeFileSync(join(GOG_CONFIG_DIR, 'credentials.json'), process.env.GOG_CLIENT_CREDENTIALS_JSON);
-        console.log(`[setupGogAuth] Wrote credentials.json to ${GOG_CONFIG_DIR}`);
       }
       
-      // 2. Write the User Session Token using the account name
-      if (process.env.GOG_TOKEN_JSON && process.env.GOG_ACCOUNT) {
-        const tokenFileName = `token_${process.env.GOG_ACCOUNT}.json`;
+      // 2. Write the User Session Token using the dynamic account name
+      if (process.env.GOG_TOKEN_JSON && resolvedTargetAccount) {
+        const tokenFileName = `token_${resolvedTargetAccount}.json`;
         writeFileSync(join(GOG_CONFIG_DIR, tokenFileName), process.env.GOG_TOKEN_JSON);
-        console.log(`[setupGogAuth] Wrote ${tokenFileName} to ${GOG_CONFIG_DIR}`);
       }
     } catch (e) {
       console.warn('Could not write gog credentials:', e);
@@ -43,7 +39,9 @@ function setupGogAuth() {
 }
 
 async function runGogCommand(command: string, account?: string): Promise<string> {
-  setupGogAuth();
+  // Only pass --account if it looks like a real email address (not placeholder text)
+  const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
+  setupGogAuth(resolvedAccount);
   try {
     // Only pass --account if it looks like a real email address (not placeholder text)
     const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
@@ -106,9 +104,10 @@ const gmailSendDef: ToolDefinition = {
 registerTool({
   definition: gmailSendDef,
   execute: async ({ to, subject, body, account }) => {
-    setupGogAuth();
+    const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
+    setupGogAuth(resolvedAccount);
+    
     try {
-      const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
       const accountFlag = resolvedAccount ? `--account "${resolvedAccount}"` : '';
       
       const output = execSync(`${GOG_BIN} gmail send --to "${to}" --subject "${subject}" --body-file - ${accountFlag}`, {
