@@ -20,15 +20,21 @@ function setupGogAuth() {
     try {
       if (!existsSync(GOG_CONFIG_DIR)) mkdirSync(GOG_CONFIG_DIR, { recursive: true });
       
+      console.log(`[setupGogAuth] Checking environment variables...`);
+      console.log(`[setupGogAuth] GOG_CLIENT_CREDENTIALS_JSON exists: ${!!process.env.GOG_CLIENT_CREDENTIALS_JSON}`);
+      console.log(`[setupGogAuth] GOG_TOKEN_JSON exists: ${!!process.env.GOG_TOKEN_JSON}`);
+      
       // 1. Write the GCP Client ID Credentials
       if (process.env.GOG_CLIENT_CREDENTIALS_JSON) {
         writeFileSync(join(GOG_CONFIG_DIR, 'credentials.json'), process.env.GOG_CLIENT_CREDENTIALS_JSON);
+        console.log(`[setupGogAuth] Wrote credentials.json to ${GOG_CONFIG_DIR}`);
       }
       
       // 2. Write the User Session Token using the account name
       if (process.env.GOG_TOKEN_JSON && process.env.GOG_ACCOUNT) {
         const tokenFileName = `token_${process.env.GOG_ACCOUNT}.json`;
         writeFileSync(join(GOG_CONFIG_DIR, tokenFileName), process.env.GOG_TOKEN_JSON);
+        console.log(`[setupGogAuth] Wrote ${tokenFileName} to ${GOG_CONFIG_DIR}`);
       }
     } catch (e) {
       console.warn('Could not write gog credentials:', e);
