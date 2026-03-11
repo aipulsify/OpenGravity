@@ -48,7 +48,12 @@ async function fetchFromZai(messages: ChatCompletionMessageParam[], tools: ChatC
     payload.tools = tools;
   }
 
-  const response = await fetch(`${env.ZAI_API_URL}/chat/completions`, {
+  let endpoint = env.ZAI_API_URL.replace(/\/$/, '');
+  if (!endpoint.endsWith('/chat/completions')) {
+    endpoint += '/chat/completions';
+  }
+
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${env.ZAI_API_KEY}`,
