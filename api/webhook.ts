@@ -24,6 +24,11 @@ const handler = async (req: VercelRequest, res: VercelResponse) => {
   try {
     const update = req.body;
     console.log('Received Telegram Update:', JSON.stringify(update));
+    console.log('--- DEBUG ENV VARS ---');
+    console.log('GOG_TOKEN_JSON present:', !!process.env.GOG_TOKEN_JSON);
+    console.log('GOG_CLIENT_CREDENTIALS_JSON present:', !!process.env.GOG_CLIENT_CREDENTIALS_JSON);
+    console.log('GOG_ACCOUNT:', process.env.GOG_ACCOUNT);
+    console.log('----------------------');
     
     if (update) {
       await bot.handleUpdate(update);
