@@ -24,12 +24,20 @@ const handler = async (req: VercelRequest, res: VercelResponse) => {
   // Debug logs before handing off
   console.log('--- DEBUG ENV VARS ---');
   console.log('GOG_TOKEN_JSON present:', !!process.env.GOG_TOKEN_JSON);
-  console.log('GOG_CLIENT_CREDENTIALS_JSON present:', !!process.env.GOG_CLIENT_CREDENTIALS_JSON);
-  console.log('----------------------');
-
-  // Let grammy handle the lifecycle and response cleanly
-  const cb = webhookCallback(bot, 'express');
-  return cb(req as any, res as any);
+  try {
+    const update = req.body;
+    
+    if (update) {
+      // Process the message fully before Vercel closes the connection
+      await bot.handleUpdate(update);
+    }
+    
+    // Only acknowledge Telegram after our bot has finished or failed internally
+    res.status(200).send('OK');
+  } catch (err: any) {
+    console.error('Webhook Error:', err.message);
+    res.status(200).send('OK'); // Still send 200 so Telegram doesn't retry infinitely
+  }
 };
 
 export default handler;
