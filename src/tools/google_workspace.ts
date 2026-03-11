@@ -33,7 +33,9 @@ async function runGogCommand(command: string, account?: string): Promise<string>
     const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
     const accountFlag = resolvedAccount ? `--account "${resolvedAccount}"` : '';
     const fullCommand = `${GOG_BIN} ${command} ${accountFlag}`.trim();
-    const { stdout, stderr } = await execPromise(fullCommand);
+    const { stdout, stderr } = await execPromise(fullCommand, {
+      env: { ...process.env, XDG_CONFIG_HOME: '/tmp' }
+    });
     if (stderr) {
       console.warn(`gog stderr: ${stderr}`);
     }
@@ -95,7 +97,8 @@ registerTool({
       
       const output = execSync(`${GOG_BIN} gmail send --to "${to}" --subject "${subject}" --body-file - ${accountFlag}`, {
         input: body,
-        encoding: 'utf-8'
+        encoding: 'utf-8',
+        env: { ...process.env, XDG_CONFIG_HOME: '/tmp' }
       });
       return output || 'Email sent successfully.';
     } catch (error: any) {
