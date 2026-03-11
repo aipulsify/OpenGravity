@@ -22,6 +22,7 @@ const handler = async (req: VercelRequest, res: VercelResponse) => {
   await ensureInit();
 
   try {
+    // Force rebuild 1
     const update = req.body;
     console.log('Received Telegram Update:', JSON.stringify(update));
     console.log('--- DEBUG ENV VARS ---');
