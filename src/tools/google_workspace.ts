@@ -24,7 +24,7 @@ function setupGogAuth(accountToUse?: string) {
       const envOpts = { 
         env: { 
           ...process.env, 
-          XDG_CONFIG_HOME: '/tmp/gogcli', 
+          XDG_CONFIG_HOME: '/tmp', 
           HOME: '/tmp',
           GOG_KEYRING_PASSWORD: 'open_gravity_dummy_pass'
         } 
@@ -74,7 +74,7 @@ async function runGogCommand(command: string, account?: string): Promise<string>
     const { stdout, stderr } = await execPromise(fullCommand, {
       env: { 
         ...process.env, 
-        XDG_CONFIG_HOME: '/tmp/gogcli', 
+        XDG_CONFIG_HOME: '/tmp', 
         HOME: '/tmp',
         GOG_KEYRING_PASSWORD: 'open_gravity_dummy_pass'
       }
@@ -144,7 +144,7 @@ registerTool({
         encoding: 'utf-8',
         env: { 
           ...process.env, 
-          XDG_CONFIG_HOME: '/tmp/gogcli', 
+          XDG_CONFIG_HOME: '/tmp', 
           HOME: '/tmp',
           GOG_KEYRING_PASSWORD: 'open_gravity_dummy_pass'
         }
