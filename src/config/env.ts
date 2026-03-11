@@ -24,7 +24,7 @@ export const env = {
     .map(id => parseInt(id, 10)),
   GROQ_API_KEY: process.env.GROQ_API_KEY!,
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
-  OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || 'openrouter/free',
+  OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
   CLIENTVERSE_API_URL: process.env.CLIENTVERSE_API_URL!,
   CLIENTVERSE_API_KEY: process.env.CLIENTVERSE_API_KEY!,
 };

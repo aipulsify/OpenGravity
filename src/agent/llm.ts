@@ -28,7 +28,8 @@ async function fetchFromOpenRouter(messages: ChatCompletionMessageParam[], tools
   });
 
   if (!response.ok) {
-    throw new Error(`OpenRouter Error: ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`OpenRouter Error: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
   const data = await response.json();
