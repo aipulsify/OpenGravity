@@ -35,7 +35,12 @@ function setupGogAuth(accountToUse?: string) {
 
       // 1. Write the GCP Client ID Credentials
       if (process.env.GOG_CLIENT_CREDENTIALS_JSON) {
-        writeFileSync(join(GOG_CONFIG_DIR, 'credentials.json'), process.env.GOG_CLIENT_CREDENTIALS_JSON);
+        const credPath = join(GOG_CONFIG_DIR, 'credentials.json');
+        console.log(`[setupGogAuth] Writing credentials to ${credPath}...`);
+        writeFileSync(credPath, process.env.GOG_CLIENT_CREDENTIALS_JSON);
+        console.log(`[setupGogAuth] Credentials file exists after write: ${existsSync(credPath)}`);
+      } else {
+        console.warn('[setupGogAuth] WARNING: GOG_CLIENT_CREDENTIALS_JSON is empty in environment!');
       }
       
       // 2. Import the User Session Token into the file-based keyring naturally
