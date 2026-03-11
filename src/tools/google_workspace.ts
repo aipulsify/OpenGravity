@@ -9,7 +9,7 @@ const execPromise = promisify(exec);
 
 // Determine gog binary path based on OS
 const IS_WINDOWS = platform() === 'win32';
-const GOG_BIN = IS_WINDOWS ? '.\\gog.exe' : './gog_linux';
+const GOG_BIN = IS_WINDOWS ? '.\\gog.exe' : join(process.cwd(), 'gog_linux');
 const GOG_CONFIG_DIR = IS_WINDOWS
   ? `${process.env.APPDATA}\\gogcli`
   : '/tmp/gogcli';
