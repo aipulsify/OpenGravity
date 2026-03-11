@@ -2,7 +2,7 @@ import { registerTool, type ToolDefinition } from '../agent/tools.js';
 import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import { platform } from 'os';
-import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
 const execPromise = promisify(exec);
@@ -21,19 +21,31 @@ function setupGogAuth(accountToUse?: string) {
       if (!existsSync(GOG_CONFIG_DIR)) mkdirSync(GOG_CONFIG_DIR, { recursive: true });
       
       const resolvedTargetAccount = accountToUse || process.env.GOG_ACCOUNT;
+      const envOpts = { env: { ...process.env, XDG_CONFIG_HOME: '/tmp/gogcli', HOME: '/tmp' } };
+
+      // Force gogcli to use a file-based keyring instead of D-Bus Secret Service on Lambda
+      execSync(`${GOG_BIN} config set keyring_backend file`, envOpts);
 
       // 1. Write the GCP Client ID Credentials
       if (process.env.GOG_CLIENT_CREDENTIALS_JSON) {
         writeFileSync(join(GOG_CONFIG_DIR, 'credentials.json'), process.env.GOG_CLIENT_CREDENTIALS_JSON);
       }
       
-      // 2. Write the User Session Token using the dynamic account name
+      // 2. Import the User Session Token into the file-based keyring naturally
       if (process.env.GOG_TOKEN_JSON && resolvedTargetAccount) {
-        const tokenFileName = `token_${resolvedTargetAccount}.json`;
-        writeFileSync(join(GOG_CONFIG_DIR, tokenFileName), process.env.GOG_TOKEN_JSON);
+        const tempTokenPath = join('/tmp', `temp_token_${resolvedTargetAccount}.json`);
+        writeFileSync(tempTokenPath, process.env.GOG_TOKEN_JSON);
+        
+        try {
+          execSync(`${GOG_BIN} auth tokens import ${tempTokenPath} --account "${resolvedTargetAccount}"`, envOpts);
+        } catch (importErr: any) {
+          console.error('[setupGogAuth] Error importing token:', importErr.message);
+        } finally {
+          unlinkSync(tempTokenPath); // Clean up
+        }
       }
     } catch (e) {
-      console.warn('Could not write gog credentials:', e);
+      console.warn('Could not setup gog credentials:', e);
     }
   }
 }
