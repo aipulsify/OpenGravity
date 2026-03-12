@@ -9,7 +9,7 @@ export const pbhGetArticlesDef: ToolDefinition = {
     properties: {
       limit: { type: 'number', description: 'Max records to fetch (default 20)' },
       period: { type: 'string', enum: ['today', 'yesterday', 'week'], description: 'Filter by date period' },
-      status: { type: 'string', enum: ['initialized', 'ready', 'published', 'generating'], description: 'Filter by article status' }
+      status: { type: 'string', enum: ['initialized', 'ready', 'publish', 'published', 'generating'], description: 'Filter by article status' }
     },
     required: []
   }
