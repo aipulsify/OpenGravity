@@ -1,0 +1,35 @@
+Usage: gog auth credentials <command>
+Build: v0.11.0 (91c4c15)
+
+Manage OAuth client credentials
+
+Flags:
+  -h, --help                  Show context-sensitive help.
+      --color="auto"          Color output: auto|always|never
+  -a, --account=STRING        Account email for API commands
+                              (gmail/calendar/chat/classroom/drive/docs/slides/contacts/tasks/people/sheets/forms/appscript)
+      --client=""             OAuth client name (selects stored credentials +
+                              token bucket)
+      --enable-commands=""    Comma-separated list of enabled top-level commands
+                              (restricts CLI)
+  -j, --json                  Output JSON to stdout (best for scripting)
+  -p, --plain                 Output stable, parseable text to stdout (TSV;
+                              no colors)
+      --results-only          In JSON mode, emit only the primary result (drops
+                              envelope fields like nextPageToken)
+      --select=STRING         In JSON mode, select comma-separated fields
+                              (best-effort; supports dot paths). Desire path:
+                              use --fields for most commands.
+  -n, --dry-run               Do not make changes; print intended actions and
+                              exit successfully
+  -y, --force                 Skip confirmations for destructive commands
+      --no-input              Never prompt; fail instead (useful for CI)
+  -v, --verbose               Enable verbose logging
+      --version               Print version and exit
+
+Commands:
+  set <credentials> [flags]
+    Store OAuth client credentials
+
+  list
+    List stored OAuth client credentials
