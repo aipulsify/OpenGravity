@@ -9,7 +9,7 @@ export const pbhGetArticlesDef: ToolDefinition = {
     properties: {
       limit: { type: 'number', description: 'Max records to fetch (default 20)' },
       period: { type: 'string', enum: ['today', 'yesterday', 'week'], description: 'Filter by date period' },
-      status: { type: 'string', enum: ['initialized', 'ready', 'publish', 'published', 'generating'], description: 'Filter by article status' }
+      status: { type: 'string', enum: ['initialized', 'ready', 'publish', 'generating'], description: 'Filter by article status' }
     },
     required: []
   }
@@ -26,7 +26,7 @@ registerTool({
 
       const queryString = params.toString();
       const url = `${env.PERSONAL_BRAND_HUB_URL}/get_articles.php${queryString ? `?${queryString}` : ''}`;
-      
+
       console.log(`[pbh_get_articles] Calling API: ${url}`);
 
       const response = await fetch(url, {
@@ -44,3 +44,80 @@ registerTool({
     }
   }
 });
+
+export const pbhQueueGenerateDef: ToolDefinition = {
+  name: 'pbh_queue_generate',
+  description: 'Queue an article for generation in PersonalBrandHub (Async).',
+  parameters: {
+    type: 'object',
+    properties: {
+      guid: { type: 'string', description: 'Unique identifier for the article' },
+      title: { type: 'string', description: 'Title of the news article' },
+      source_url: { type: 'string', description: 'Original source URL of the news' }
+    },
+    required: ['guid', 'title', 'source_url']
+  }
+};
+
+registerTool({
+  definition: pbhQueueGenerateDef,
+  execute: async ({ guid, title, source_url }) => {
+    try {
+      const url = `${env.PERSONAL_BRAND_HUB_ADMIN_URL}/queue_generate.php`;
+      console.log(`[pbh_queue_generate] Calling API: ${url} for guid: ${guid}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ guid, title, source_url })
+      });
+
+      if (!response.ok) {
+        return `Error: PersonalBrandHub Admin API returned ${response.status} ${response.statusText}`;
+      }
+
+      const data = await response.json();
+      return JSON.stringify(data, null, 2);
+    } catch (error: any) {
+      return `Error calling PersonalBrandHub Admin API: ${error.message}`;
+    }
+  }
+});
+
+export const pbhGetArticleStatusDef: ToolDefinition = {
+  name: 'pbh_get_article_status',
+  description: 'Check the generation status of an article in PersonalBrandHub.',
+  parameters: {
+    type: 'object',
+    properties: {
+      guid: { type: 'string', description: 'The unique identifier (GUID) of the article' }
+    },
+    required: ['guid']
+  }
+};
+
+registerTool({
+  definition: pbhGetArticleStatusDef,
+  execute: async ({ guid }) => {
+    try {
+      const url = `${env.PERSONAL_BRAND_HUB_ADMIN_URL}/get_article_status.php?guid=${guid}`;
+      console.log(`[pbh_get_article_status] Calling API: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'GET'
+      });
+
+      if (!response.ok) {
+        return `Error: PersonalBrandHub Admin API returned ${response.status} ${response.statusText}`;
+      }
+
+      const data = await response.json();
+      return JSON.stringify(data, null, 2);
+    } catch (error: any) {
+      return `Error calling PersonalBrandHub Admin API: ${error.message}`;
+    }
+  }
+});
+
