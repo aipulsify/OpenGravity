@@ -30,6 +30,7 @@ export const env = {
   ZAI_MODEL: process.env.ZAI_MODEL || 'meta-llama/llama-3.3-70b-instruct',
   CLIENTVERSE_API_URL: process.env.CLIENTVERSE_API_URL!,
   CLIENTVERSE_API_KEY: process.env.CLIENTVERSE_API_KEY!,
+  PERSONAL_BRAND_HUB_URL: process.env.PERSONAL_BRAND_HUB_URL || 'https://personalbrandhub.aipulsify.com/api/public',
 };
 
 // Check if there are valid user IDs

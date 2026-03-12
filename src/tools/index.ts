@@ -1,5 +1,6 @@
 import './get_current_time.js';
 import './google_workspace.js';
+import './personal_brand_hub.js';
 
 import { getAllToolDefinitions, toolRegistry } from '../agent/tools.js';
 
