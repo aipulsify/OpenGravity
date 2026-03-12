@@ -22,7 +22,7 @@ const handler = async (req: VercelRequest, res: VercelResponse) => {
   await ensureInit();
 
   // Debug logs before handing off
-  console.log('--- DEBUG ENV VARS 6 ---');
+  console.log('--- DEBUG ENV VARS 7 ---');
   console.log('GOG_TOKEN_JSON present:', !!process.env.GOG_TOKEN_JSON);
   console.log('GOG_CLIENT_CREDENTIALS_JSON present:', !!process.env.GOG_CLIENT_CREDENTIALS_JSON);
   try {
