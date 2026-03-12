@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, InlineKeyboard } from 'grammy';
 import { env } from '../config/env.js';
 import { processUserMessage } from '../agent/loop.js';
 import { transcribeAudio } from '../agent/llm.js';
@@ -26,6 +26,20 @@ bot.command('start', async (ctx) => {
   await ctx.reply("Hello! I am OpenGravity. How can I help you today?");
 });
 
+/**
+ * Extracts [TELEGRAM_WEB_APP:URL] from text and returns cleaned text + URL.
+ */
+function parseWebApp(text: string): { cleanText: string; webAppUrl: string | null } {
+  const regex = /\[TELEGRAM_WEB_APP:(https?:\/\/[^\]]+)\]/;
+  const match = text.match(regex);
+  if (match) {
+    const webAppUrl = match[1];
+    const cleanText = text.replace(regex, '').trim();
+    return { cleanText, webAppUrl };
+  }
+  return { cleanText: text, webAppUrl: null };
+}
+
 // Handle text messages
 bot.on('message:text', async (ctx) => {
   try {
@@ -35,13 +49,19 @@ bot.on('message:text', async (ctx) => {
     if(!ctx.from) return;
 
     const response = await processUserMessage(ctx.from.id, ctx.message.text);
+    const { cleanText, webAppUrl } = parseWebApp(response);
     
+    const replyOptions: any = { parse_mode: 'HTML' };
+    if (webAppUrl) {
+      replyOptions.reply_markup = new InlineKeyboard().webApp("Ver Artículo 🖋️", webAppUrl);
+    }
+
     try {
-      const htmlResponse = markdownToTelegramHtml(response);
-      await ctx.reply(htmlResponse, { parse_mode: 'HTML' });
+      const htmlResponse = markdownToTelegramHtml(cleanText);
+      await ctx.reply(htmlResponse, replyOptions);
     } catch (parseError) {
       console.warn('Failed to send HTML format, falling back to plain text:', parseError);
-      await ctx.reply(response);
+      await ctx.reply(cleanText, replyOptions);
     }
   } catch (error) {
     console.error('Error processing message:', error);
@@ -92,13 +112,19 @@ bot.on(['message:voice', 'message:audio'], async (ctx) => {
 
     // Process transcription as a normal message
     const botResponse = await processUserMessage(ctx.from.id, transcription);
+    const { cleanText, webAppUrl } = parseWebApp(botResponse);
     
+    const replyOptions: any = { parse_mode: 'HTML' };
+    if (webAppUrl) {
+      replyOptions.reply_markup = new InlineKeyboard().webApp("Ver Artículo 🖋️", webAppUrl);
+    }
+
     try {
-      const htmlResponse = markdownToTelegramHtml(botResponse);
-      await ctx.reply(htmlResponse, { parse_mode: 'HTML' });
+      const htmlResponse = markdownToTelegramHtml(cleanText);
+      await ctx.reply(htmlResponse, replyOptions);
     } catch (parseError) {
       console.warn('Failed to send HTML format, falling back to plain text:', parseError);
-      await ctx.reply(botResponse);
+      await ctx.reply(cleanText, replyOptions);
     }
 
   } catch (error: any) {

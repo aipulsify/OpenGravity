@@ -121,3 +121,35 @@ registerTool({
   }
 });
 
+export const pbhOpenMiniAppDef: ToolDefinition = {
+  name: 'pbh_open_mini_app',
+  description: 'Provide an interactive Mini App button to view an article in PersonalBrandHub.',
+  parameters: {
+    type: 'object',
+    properties: {
+      guid: { type: 'string', description: 'The GUID of the article to view' },
+      url: { type: 'string', description: 'Explicit URL to open (optional)' }
+    },
+    required: []
+  }
+};
+
+registerTool({
+  definition: pbhOpenMiniAppDef,
+  execute: async ({ guid, url }) => {
+    let targetUrl = url;
+    if (!targetUrl && guid) {
+      // Convention: base_url/view.php?guid=... (or whatever the app uses)
+      // The user mentioned https://personalbrandhub.aipulsify.com/ shows the app. 
+      // Assuming a direct GUID parameter or just the base URL if not specific.
+      targetUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}?guid=${guid}`;
+    } else if (!targetUrl) {
+      targetUrl = env.PERSONAL_BRAND_HUB_BASE_URL;
+    }
+    
+    // We return a special directive for the bot to handle
+    return `[TELEGRAM_WEB_APP:${targetUrl}]`;
+  }
+});
+
+
