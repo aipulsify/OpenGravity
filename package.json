@@ -2,7 +2,7 @@
   "name": "opengravity",
   "version": "1.0.0",
   "description": "Local AI agent using Telegram, Groq, and SQLite",
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
