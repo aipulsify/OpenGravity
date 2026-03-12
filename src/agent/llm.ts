@@ -1,9 +1,7 @@
 import Groq from 'groq-sdk';
 import { env } from '../config/env.js';
 import { getAllToolDefinitions } from '../tools/index.js';
-// Use any for complex groq-sdk types that sometimes fail to resolve accurately in Vercel builds
-type ChatCompletionMessageParam = any;
-type ChatCompletionTool = any;
+import type { ChatCompletionMessageParam, ChatCompletionTool } from 'groq-sdk/resources/chat/completions.js';
 
 const groq = new Groq({ apiKey: env.GROQ_API_KEY });
 const FALLBACK_URL = 'https://openrouter.ai/api/v1';
