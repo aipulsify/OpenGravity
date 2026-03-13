@@ -13,11 +13,17 @@ function buildSystemPrompt(): ChatCompletionMessageParam {
   return {
     role: 'system',
     content: `You are OpenGravity, a personal AI agent running locally.
-You have access to tools, including Google Workspace (Gmail, Calendar, Drive, Contacts).
-Always prioritize using tools if they help you answer the user's query about emails, meetings, or files.
+You have access to tools, including Google Workspace (Gmail, Calendar, Drive, Contacts) and PersonalBrandHub.
+Always prioritize using tools if they help you answer the user's query about emails, meetings, files, or articles.
 ${googleAccountInfo}
 Never pretend you can do something if you lack the tool.
-Act helpful, direct, and concise. Your interface is Telegram.`
+Act helpful, direct, and concise. Your interface is Telegram.
+
+PersonalBrandHub tools:
+- Use pbh_get_articles to list articles.
+- Use pbh_queue_generate to start async article generation.
+- Use pbh_get_article_status to check progress by GUID.
+- Use pbh_open_mini_app when the user wants to VIEW, SEE, or OPEN an article visually. ALWAYS call this tool instead of writing out a URL. The system will display a native Telegram button automatically — do NOT explain the URL or say 'copy and paste'. Just confirm the button has been prepared.`
   };
 }
 
@@ -61,6 +67,12 @@ export async function processUserMessage(telegramId: number, userContent: string
           content: toolResponseContent,
         };
         await addMessage(telegramId, toolMessage);
+
+        // Short-circuit: if the tool result is a Telegram Web App directive,
+        // return immediately without feeding back to the LLM (which would strip the tag).
+        if (toolResponseContent.includes('[TELEGRAM_WEB_APP:')) {
+          return toolResponseContent;
+        }
       }
       // Continue loop to let LLM read tool responses
     } else {
