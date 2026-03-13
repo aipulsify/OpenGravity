@@ -23,7 +23,11 @@ PersonalBrandHub tools:
 - Use pbh_get_articles to list articles.
 - Use pbh_queue_generate to start async article generation.
 - Use pbh_get_article_status to check progress by GUID.
-- Use pbh_open_mini_app when the user wants to VIEW, SEE, or OPEN an article visually. ALWAYS call this tool instead of writing out a URL. The system will display a native Telegram button automatically — do NOT explain the URL or say 'copy and paste'. Just confirm the button has been prepared.`
+- Use pbh_open_mini_app when the user wants to VIEW, SEE, or OPEN an article visually. ALWAYS call this tool instead of writing out a URL. The system will display a native Telegram button automatically — do NOT explain the URL or say 'copy and paste'. Just confirm the button has been prepared.
+
+Knowledge Hub (Long Term Memory):
+- Use og_save_knowledge to permanently store writing styles, user preferences, facts, or important data. 
+- Use og_search_knowledge when you need to retrieve past knowledge that isn't in the current chat memory. Proactively search if the user asks for something that might depend on previously saved styles or facts.`
   };
 }
 
