@@ -55,13 +55,16 @@ bot.on('message:text', async (ctx) => {
     if (webAppUrl) {
       replyOptions.reply_markup = new InlineKeyboard().webApp("Ver Artículo 🖋️", webAppUrl);
     }
+    
+    // Telegram requires non-empty text even when an inline keyboard is attached
+    const textToSend = cleanText || (webAppUrl ? '👇 Toca el botón para abrir el artículo:' : '');
 
     try {
-      const htmlResponse = markdownToTelegramHtml(cleanText);
-      await ctx.reply(htmlResponse, replyOptions);
+      const htmlResponse = markdownToTelegramHtml(textToSend);
+      await ctx.reply(htmlResponse || textToSend, replyOptions);
     } catch (parseError) {
       console.warn('Failed to send HTML format, falling back to plain text:', parseError);
-      await ctx.reply(cleanText, replyOptions);
+      await ctx.reply(textToSend, replyOptions);
     }
   } catch (error) {
     console.error('Error processing message:', error);
@@ -119,12 +122,15 @@ bot.on(['message:voice', 'message:audio'], async (ctx) => {
       replyOptions.reply_markup = new InlineKeyboard().webApp("Ver Artículo 🖋️", webAppUrl);
     }
 
+    // Telegram requires non-empty text even when an inline keyboard is attached
+    const textToSend = cleanText || (webAppUrl ? '👇 Toca el botón para abrir el artículo:' : '');
+
     try {
-      const htmlResponse = markdownToTelegramHtml(cleanText);
-      await ctx.reply(htmlResponse, replyOptions);
+      const htmlResponse = markdownToTelegramHtml(textToSend);
+      await ctx.reply(htmlResponse || textToSend, replyOptions);
     } catch (parseError) {
       console.warn('Failed to send HTML format, falling back to plain text:', parseError);
-      await ctx.reply(cleanText, replyOptions);
+      await ctx.reply(textToSend, replyOptions);
     }
 
   } catch (error: any) {

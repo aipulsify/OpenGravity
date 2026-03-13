@@ -139,10 +139,8 @@ registerTool({
   execute: async ({ guid, url }) => {
     let targetUrl = url;
     if (!targetUrl && guid) {
-      // Convention: base_url/view.php?guid=... (or whatever the app uses)
-      // The user mentioned https://personalbrandhub.aipulsify.com/ shows the app. 
-      // Assuming a direct GUID parameter or just the base URL if not specific.
-      targetUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}?guid=${guid}`;
+      // PersonalBrandHub uses React Router: /article/:guid
+      targetUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/article/${guid}`;
     } else if (!targetUrl) {
       targetUrl = env.PERSONAL_BRAND_HUB_BASE_URL;
     }
