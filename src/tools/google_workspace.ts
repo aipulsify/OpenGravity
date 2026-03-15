@@ -310,6 +310,18 @@ registerTool({
             // 1. Fetch content
             const content = await runGogCommand(type === 'doc' ? `docs cat "${id}"` : `sheets get "${id}" "A1:Z100" --json`);
             
+            // Validate content - check for common Google CLI error patterns
+            if (content.startsWith('Error:') || content.includes('not found') || content.includes('Google API error')) {
+                return `❌ No he podido abrir el archivo "${title}".
+                
+El identificador "${id}" no parece ser un ID de Google válido o el archivo no existe. 
+
+**¿Qué puedes intentar?**
+1.  **Búsqueda Asistida**: Pídeme "Busca en mi Google Drive el archivo '...'" y yo encontraré el ID técnico por ti.
+2.  **Copia el ID de la URL**: El ID es la cadena larga que aparece en la barra de direcciones de tu navegador (ej: 1ABC...xyz).
+3.  **Formato Nativo**: Asegúrate de que el archivo sea un Google Doc o Sheet real, no un archivo subido (como un .docx o .xlsx sin convertir).`;
+            }
+
             // 2. Generate a unique snapshot ID
             const snapshotId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
             
