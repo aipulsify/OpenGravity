@@ -27,7 +27,10 @@ PersonalBrandHub tools:
 
 Knowledge Hub (Long Term Memory):
 - Use og_save_knowledge to permanently store writing styles, user preferences, facts, or important data. 
-- Use og_search_knowledge when you need to retrieve past knowledge that isn't in the current chat memory. Proactively search if the user asks for something that might depend on previously saved styles or facts.`
+- Use og_search_knowledge when you need to retrieve past knowledge that isn't in the current chat memory. Proactively search if the user asks for something that might depend on previously saved styles or facts.
+
+Interactive Google Workspace:
+- Use og_open_workspace_app when the user wants to VIEW, ANALYZE, or INTERACT with a Google Doc or Sheet specifically using AI tools (Summarize, Rewrite, etc.). This opens a specialized Mini App.`
   };
 }
 

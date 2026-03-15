@@ -1,4 +1,5 @@
 import { registerTool, type ToolDefinition } from '../agent/tools.js';
+import { env } from '../config/env.js';
 import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import { platform } from 'os';
@@ -285,3 +286,59 @@ const docsCatDef: ToolDefinition = {
       return runGogCommand(`docs cat "${docId}"`);
     }
   });
+
+// OPEN WORKSPACE MINI APP (Option B)
+const openWorkspaceAppDef: ToolDefinition = {
+    name: 'og_open_workspace_app',
+    description: 'Opens a Google Doc or Sheet in an interactive Mini App for viewing and AI interaction.',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The Document or Spreadsheet ID' },
+        type: { type: 'string', enum: ['doc', 'sheet'], description: 'Type of file' },
+        title: { type: 'string', description: 'Title of the document' },
+        telegram_id: { type: 'number', description: 'Telegram user ID' }
+      },
+      required: ['id', 'type', 'title', 'telegram_id']
+    }
+};
+
+registerTool({
+    definition: openWorkspaceAppDef,
+    execute: async ({ id, type, title, telegram_id }) => {
+        try {
+            // 1. Fetch content
+            const content = await runGogCommand(type === 'doc' ? `docs cat "${id}"` : `sheets get "${id}" "A1:Z100" --json`);
+            
+            // 2. Generate a unique snapshot ID
+            const snapshotId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            
+            // 3. Save as a snapshot in Knowledge Hub
+            // Category 'document' to distinguish it
+            const knowledgeApi = `${env.CLIENTVERSE_API_URL}/api/opengravity/knowledge.php`;
+            const token = 'og_secret_default_key_2026';
+            
+            await fetch(knowledgeApi, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    telegram_id,
+                    topic: snapshotId, // The GUID for the snapshot
+                    content: content,
+                    category: 'document',
+                    metadata: JSON.stringify({ original_title: title, original_id: id })
+                })
+            });
+
+            // 4. Return the Mini App link
+            const miniAppUrl = `https://personalbrandhub.aipulsify.com/workspace/${snapshotId}`;
+            return `Documento procesado correctamente. Puedes abrirlo e interactuar con la IA aquí:\n\n[TELEGRAM_WEB_APP:${miniAppUrl}]`;
+        
+        } catch (error: any) {
+            return `Error opening interactive workspace: ${error.message}`;
+        }
+    }
+});
