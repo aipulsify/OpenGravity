@@ -341,7 +341,7 @@ El identificador "${id}" no parece ser un ID de Google válido o el archivo no e
                     topic: snapshotId, // The GUID for the snapshot
                     content: content,
                     category: 'document',
-                    metadata: JSON.stringify({ original_title: title, original_id: id })
+                    metadata: JSON.stringify({ original_title: title, original_id: id, type: type })
                 })
             });
 
