@@ -59,13 +59,14 @@ bot.on('message:text', async (ctx) => {
     }
     
     // Telegram requires non-empty text even when an inline keyboard is attached
-    const textToSend = cleanText || (webAppUrl ? '👇 Toca el botón para abrir el artículo:' : '');
+    const textToSend = cleanText || (webAppUrl ? (response.toLowerCase().includes('documento') ? '👇 Toca el botón para abrir el documento:' : '👇 Toca el botón para abrir el artículo:') : '');
 
     try {
       const htmlResponse = markdownToTelegramHtml(textToSend);
+      console.log(`[telegram] Sending reply to ${ctx.from.id}. Button: ${!!webAppUrl}, Label: ${webAppUrl ? (response.toLowerCase().includes('documento') ? "Abrir Documento 📄" : "Ver Artículo 🖋️") : 'None'}`);
       await ctx.reply(htmlResponse || textToSend, replyOptions);
-    } catch (parseError) {
-      console.warn('Failed to send HTML format, falling back to plain text:', parseError);
+    } catch (parseError: any) {
+      console.warn('Failed to send HTML format, falling back to plain text:', parseError.message);
       await ctx.reply(textToSend, replyOptions);
     }
   } catch (error) {
