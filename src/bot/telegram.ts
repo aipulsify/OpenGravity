@@ -53,7 +53,9 @@ bot.on('message:text', async (ctx) => {
     
     const replyOptions: any = { parse_mode: 'HTML' };
     if (webAppUrl) {
-      replyOptions.reply_markup = new InlineKeyboard().webApp("Ver Artículo 🖋️", webAppUrl);
+      // Use a more generic label for documents vs articles
+      const buttonLabel = response.toLowerCase().includes('documento') ? "Abrir Documento 📄" : "Ver Artículo 🖋️";
+      replyOptions.reply_markup = new InlineKeyboard().webApp(buttonLabel, webAppUrl);
     }
     
     // Telegram requires non-empty text even when an inline keyboard is attached

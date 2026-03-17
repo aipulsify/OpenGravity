@@ -78,6 +78,7 @@ export async function processUserMessage(telegramId: number, userContent: string
         // Short-circuit: if the tool result is a Telegram Web App directive,
         // return immediately without feeding back to the LLM (which would strip the tag).
         if (toolResponseContent.includes('[TELEGRAM_WEB_APP:')) {
+          console.log(`[loop] Short-circuit return for Web App:`, toolResponseContent.substring(0, 100));
           return toolResponseContent;
         }
       }

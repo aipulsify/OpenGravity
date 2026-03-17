@@ -306,25 +306,12 @@ const openWorkspaceAppDef: ToolDefinition = {
 registerTool({
     definition: openWorkspaceAppDef,
     execute: async ({ id, type, title, telegram_id }) => {
-        console.log(`[og_open_workspace_app] Starting for ${type} "${title}" (ID: ${id}) for user ${telegram_id}`);
         try {
-            // 0. Ensure binary is executable on Linux
-            if (!IS_WINDOWS) {
-                try {
-                    execSync(`chmod +x "${GOG_BIN}"`);
-                } catch (e) {
-                    console.warn(`[og_open_workspace_app] Failed to chmod binary:`, e);
-                }
-            }
-
             // 1. Fetch content
-            console.log(`[og_open_workspace_app] Step 1: Fetching content...`);
             const content = await runGogCommand(type === 'doc' ? `docs cat "${id}"` : `sheets get "${id}" "A1:Z100" --json`);
-            console.log(`[og_open_workspace_app] Fetch completed. Length: ${content?.length || 0}`);
             
             // Validate content - check for common Google CLI error patterns
             if (!content || content.startsWith('Error:') || content.includes('not found') || content.includes('Google API error')) {
-                console.error(`[og_open_workspace_app] Validation failed:`, content?.substring(0, 100));
                 return `❌ No he podido abrir el archivo "${title}".
                 
 El identificador "${id}" no parece ser un ID de Google válido o el archivo no existe. 
@@ -337,18 +324,16 @@ El identificador "${id}" no parece ser un ID de Google válido o el archivo no e
 
             // 2. Generate a unique snapshot ID
             const snapshotId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-            console.log(`[og_open_workspace_app] Step 2: Generated snapshotId: ${snapshotId}`);
             
             // 3. Save as a snapshot in Knowledge Hub
-            console.log(`[og_open_workspace_app] Step 3: Saving to Knowledge Hub...`);
             const knowledgeApi = `${env.CLIENTVERSE_API_URL}/api/opengravity/knowledge.php`;
             const token = 'og_secret_default_key_2026';
             
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout for the fetch
+            const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
             try {
-                const fetchRes = await fetch(knowledgeApi, {
+                await fetch(knowledgeApi, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -359,24 +344,22 @@ El identificador "${id}" no parece ser un ID de Google válido o el archivo no e
                         topic: snapshotId,
                         content: content,
                         category: 'document',
-                        metadata: JSON.stringify({ original_title: title, original_id: id, type: type })
+                        metadata: { original_title: title, original_id: id, type: type }
                     }),
                     signal: controller.signal
                 });
-                console.log(`[og_open_workspace_app] Knowledge Hub save response status: ${fetchRes.status}`);
             } finally {
                 clearTimeout(timeout);
             }
 
             // 4. Return the Mini App link
             const miniAppUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/workspace/${snapshotId}`;
-            console.log(`[og_open_workspace_app] Step 4: Success. Returning URL: ${miniAppUrl}`);
             return `Documento procesado correctamente. Puedes abrirlo e interactuar con la IA aquí:\n\n[TELEGRAM_WEB_APP:${miniAppUrl}]`;
         
         } catch (error: any) {
-            console.error(`[og_open_workspace_app] CRITICAL ERROR:`, error);
+            console.error(`[og_open_workspace_app] Error:`, error);
             if (error.name === 'AbortError') {
-                return `⚠️ La operación tardó demasiado en guardarse. Prueba con un documento más pequeño o inténtalo de nuevo en unos segundos.`;
+                return `⚠️ La operación tardó demasiado. Si el documento es muy grande, intenta de nuevo en unos segundos.`;
             }
             return `Error opening interactive workspace: ${error.message}`;
         }
