@@ -1,0 +1,3 @@
+Sync commit triggering deployment after API URL audit and fixes in PersonalBrandHub frontend.
+Date: 2026-03-17
+Files Updated: WorkspaceViewPage.jsx, ArticleViewPage.jsx, Dashboard.jsx, ProfilePage.jsx, SettingsPage.jsx.
