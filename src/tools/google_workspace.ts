@@ -333,6 +333,7 @@ El identificador "${id}" no parece ser un ID de Google válido o el archivo no e
             const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
             try {
+                console.log(`[og_open_workspace_app] Saving ${content.length} characters to Knowledge Hub...`);
                 await fetch(knowledgeApi, {
                     method: 'POST',
                     headers: {
