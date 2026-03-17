@@ -1,3 +1,4 @@
-Sync commit triggering deployment after API URL audit and fixes in PersonalBrandHub frontend.
-Date: 2026-03-17
-Files Updated: WorkspaceViewPage.jsx, ArticleViewPage.jsx, Dashboard.jsx, ProfilePage.jsx, SettingsPage.jsx.
+Sync commit: Internal Document Preview implementation.
+Date: 2026-03-17 13:58
+Feature: Internal Iframe Preview for Google Workspace in WorkspaceViewPage.jsx.
+Doc Updated: task.md, implementation_plan.md, walkthrough.md.
