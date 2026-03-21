@@ -10,10 +10,34 @@ const execPromise = promisify(exec);
 
 // Determine gog binary path based on OS
 const IS_WINDOWS = platform() === 'win32';
-const GOG_BIN = IS_WINDOWS ? '.\\gog.exe' : join(process.cwd(), 'gog_linux');
+const SOURCE_GOG_BIN = IS_WINDOWS ? join(process.cwd(), 'gog.exe') : join(process.cwd(), 'gog_linux');
+const TARGET_GOG_BIN = IS_WINDOWS ? SOURCE_GOG_BIN : '/tmp/gog_linux';
 const GOG_CONFIG_DIR = IS_WINDOWS
   ? `${process.env.APPDATA}\\gogcli`
   : '/tmp/gogcli';
+
+/**
+ * Ensures the gog binary is executable.
+ * On Vercel (Linux), we must copy it to /tmp because the source dir is read-only.
+ */
+function ensureGogBinary() {
+  if (IS_WINDOWS) return TARGET_GOG_BIN;
+  
+  try {
+    if (!existsSync(TARGET_GOG_BIN)) {
+      console.log(`[ensureGogBinary] Copying binary from ${SOURCE_GOG_BIN} to ${TARGET_GOG_BIN}...`);
+      const binaryData = require('fs').readFileSync(SOURCE_GOG_BIN);
+      writeFileSync(TARGET_GOG_BIN, binaryData);
+    }
+    
+    // Always attempt chmod to be safe (it's allowed in /tmp)
+    execSync(`chmod +x ${TARGET_GOG_BIN}`);
+    return TARGET_GOG_BIN;
+  } catch (err: any) {
+    console.error(`[ensureGogBinary] Failed to prepare binary: ${err.message}`);
+    return SOURCE_GOG_BIN; // Fallback to original path
+  }
+}
 
 // On Linux (Vercel): write credentials and token from env vars to /tmp so gog can find them
 function setupGogAuth(accountToUse?: string) {
@@ -21,6 +45,7 @@ function setupGogAuth(accountToUse?: string) {
     try {
       if (!existsSync(GOG_CONFIG_DIR)) mkdirSync(GOG_CONFIG_DIR, { recursive: true });
       
+      const gogBin = ensureGogBinary();
       const resolvedTargetAccount = accountToUse || process.env.GOG_ACCOUNT;
       const envOpts = { 
         env: { 
@@ -32,16 +57,15 @@ function setupGogAuth(accountToUse?: string) {
       };
 
       // Force gogcli to use a file-based keyring instead of D-Bus Secret Service on Lambda
-      execSync(`${GOG_BIN} config set keyring_backend file`, envOpts);
+      execSync(`${gogBin} config set keyring_backend file`, envOpts);
 
       // 1. Write the GCP Client ID Credentials
       if (process.env.GOG_CLIENT_CREDENTIALS_JSON) {
         const credPath = join(GOG_CONFIG_DIR, 'credentials.json');
-        console.log(`[setupGogAuth] Writing credentials to ${credPath}...`);
-        writeFileSync(credPath, process.env.GOG_CLIENT_CREDENTIALS_JSON);
-        console.log(`[setupGogAuth] Credentials file exists after write: ${existsSync(credPath)}`);
-      } else {
-        console.warn('[setupGogAuth] WARNING: GOG_CLIENT_CREDENTIALS_JSON is empty in environment!');
+        if (!existsSync(credPath)) {
+          console.log(`[setupGogAuth] Writing credentials to ${credPath}...`);
+          writeFileSync(credPath, process.env.GOG_CLIENT_CREDENTIALS_JSON);
+        }
       }
       
       // 2. Import the User Session Token into the file-based keyring naturally
@@ -50,11 +74,11 @@ function setupGogAuth(accountToUse?: string) {
         writeFileSync(tempTokenPath, process.env.GOG_TOKEN_JSON);
         
         try {
-          execSync(`${GOG_BIN} auth tokens import ${tempTokenPath} --account "${resolvedTargetAccount}"`, envOpts);
+          execSync(`${gogBin} auth tokens import ${tempTokenPath} --account "${resolvedTargetAccount}" --no-input`, envOpts);
         } catch (importErr: any) {
           console.error('[setupGogAuth] Error importing token:', importErr.message);
         } finally {
-          unlinkSync(tempTokenPath); // Clean up
+          if (existsSync(tempTokenPath)) unlinkSync(tempTokenPath);
         }
       }
     } catch (e) {
@@ -64,14 +88,14 @@ function setupGogAuth(accountToUse?: string) {
 }
 
 async function runGogCommand(command: string, account?: string): Promise<string> {
-  // Only pass --account if it looks like a real email address (not placeholder text)
   const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
   setupGogAuth(resolvedAccount);
+  const gogBin = ensureGogBinary();
+  
   try {
-    // Only pass --account if it looks like a real email address (not placeholder text)
-    const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
     const accountFlag = resolvedAccount ? `--account "${resolvedAccount}"` : '';
-    const fullCommand = `${GOG_BIN} ${command} ${accountFlag}`.trim();
+    const fullCommand = `${gogBin} ${command} ${accountFlag}`.trim();
+    
     const { stdout, stderr } = await execPromise(fullCommand, {
       env: { 
         ...process.env, 
@@ -80,15 +104,13 @@ async function runGogCommand(command: string, account?: string): Promise<string>
         GOG_KEYRING_PASSWORD: 'open_gravity_dummy_pass'
       }
     });
-    if (stderr) {
+
+    if (stderr && stderr.length > 0 && !stderr.includes('Imported refresh token')) {
       console.warn(`gog stderr: ${stderr}`);
     }
     return stdout || 'Command executed successfully.';
   } catch (error: any) {
     console.error(`Error executing gog command: ${error.message}`);
-    if (error.message.includes('not recognized') || error.message.includes('ENOENT')) {
-        return "Error: The 'gog' CLI tool is not installed or not in the system path.";
-    }
     return `Error: ${error.message}${error.stderr ? `\nStderr: ${error.stderr}` : ''}`;
   }
 }
@@ -139,8 +161,8 @@ registerTool({
     
     try {
       const accountFlag = resolvedAccount ? `--account "${resolvedAccount}"` : '';
-      
-      const output = execSync(`${GOG_BIN} gmail send --to "${to}" --subject "${subject}" --body-file - ${accountFlag}`, {
+      const gogBin = ensureGogBinary();
+      const output = execSync(`${gogBin} gmail send --to "${to}" --subject "${subject}" --body-file - ${accountFlag}`, {
         input: body,
         encoding: 'utf-8',
         env: { 
