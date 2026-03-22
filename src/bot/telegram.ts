@@ -49,13 +49,22 @@ bot.on('message:text', async (ctx) => {
     if(!ctx.from) return;
 
     const response = await processUserMessage(ctx.from.id, ctx.message.text);
+    console.log(`[bot] Bot response for ${ctx.from.id}:`, response.substring(0, 50));
     const { cleanText, webAppUrl } = parseWebApp(response);
     
     const replyOptions: any = { parse_mode: 'HTML' };
     if (webAppUrl) {
+      console.log(`[bot] Detected WebApp URL: ${webAppUrl}`);
       // Use a more generic label for documents vs articles
-      const buttonLabel = response.toLowerCase().includes('documento') ? "Abrir Documento 📄" : "Ver Artículo 🖋️";
-      replyOptions.reply_markup = new InlineKeyboard().webApp(buttonLabel, webAppUrl);
+      const isGoogleAuth = response.toLowerCase().includes('google') || webAppUrl.includes('auth/google');
+      const buttonLabel = response.toLowerCase().includes('documento') ? "Abrir Documento 📄" : (isGoogleAuth ? "Conectar Google 🔑" : "Ver Artículo 🖋️");
+      
+      if (isGoogleAuth) {
+        // OAuth MUST open in external browser, not in a WebApp frame
+        replyOptions.reply_markup = new InlineKeyboard().url(buttonLabel, webAppUrl);
+      } else {
+        replyOptions.reply_markup = new InlineKeyboard().webApp(buttonLabel, webAppUrl);
+      }
     }
     
     // Telegram requires non-empty text even when an inline keyboard is attached

@@ -56,12 +56,14 @@ export async function processUserMessage(telegramId: number, userContent: string
         
         const fname = toolCall.function.name;
         const fargs = JSON.parse(toolCall.function.arguments || '{}');
+        console.log(`[loop] Calling tool: ${fname} with args:`, fargs);
         
         let toolResponseContent = '';
         try {
           const tool = toolRegistry[fname];
           if (!tool) throw new Error(`Tool ${fname} not found`);
           toolResponseContent = await tool.execute(fargs, { telegramId });
+          console.log(`[loop] Tool ${fname} response (first 100 chars):`, toolResponseContent.substring(0, 100));
         } catch (err: any) {
           console.error(`Error executing tool ${fname}:`, err);
           toolResponseContent = `Error: ${err.message}`;

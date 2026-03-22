@@ -42,6 +42,7 @@ function ensureGogBinary() {
 
 // On Linux (Vercel): write credentials and token from env vars to /tmp so gog can find them
 async function setupGogAuth(telegramId: string, accountToUse?: string) {
+  console.log(`[setupGogAuth] Starting for telegramId: ${telegramId}, account: ${accountToUse}`);
   if (!IS_WINDOWS) {
     try {
       if (!existsSync(GOG_CONFIG_DIR)) mkdirSync(GOG_CONFIG_DIR, { recursive: true });
@@ -70,8 +71,10 @@ async function setupGogAuth(telegramId: string, accountToUse?: string) {
       }
       
       // 2. Fetch User-Specific Token from DB/API
+      console.log(`[setupGogAuth] Fetching token for ${telegramId}...`);
       const accessToken = await getValidToken(telegramId);
       if (accessToken && resolvedTargetAccount) {
+        console.log(`[setupGogAuth] Token found. Importing...`);
         const tokenJson = JSON.stringify({ access_token: accessToken, token_type: 'Bearer' });
         const tempTokenPath = join('/tmp', `temp_token_${resolvedTargetAccount}.json`);
         writeFileSync(tempTokenPath, tokenJson);
@@ -84,6 +87,7 @@ async function setupGogAuth(telegramId: string, accountToUse?: string) {
           if (existsSync(tempTokenPath)) unlinkSync(tempTokenPath);
         }
       } else if (!accessToken) {
+          console.log(`[setupGogAuth] No token found for ${telegramId}. Throwing error.`);
           throw new Error('GOOGLE_ACCOUNT_NOT_CONNECTED');
       }
     } catch (e: any) {
@@ -116,6 +120,9 @@ async function runGogCommand(telegramId: string, command: string, account?: stri
     }
     return stdout || 'Command executed successfully.';
   } catch (error: any) {
+    if (error.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
+      throw error; // Let the specific tool handle the link generation
+    }
     console.error(`Error executing gog command: ${error.message}`);
     return `Error: ${error.message}${error.stderr ? `\nStderr: ${error.stderr}` : ''}`;
   }
@@ -139,12 +146,13 @@ const gmailSearchDef: ToolDefinition = {
 registerTool({
   definition: gmailSearchDef,
   execute: async ({ query, max = 10, account }, { telegramId }) => {
+    console.log(`[gmail_search] Called by telegramId: ${telegramId}`);
     try {
       return await runGogCommand(String(telegramId), `gmail search "${query}" --max ${max} --json --no-input`, account);
     } catch (e: any) {
       if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
         const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
-        return `❌ **Cuenta de Google no conectada**\n\nNecesito tu permiso para acceder a Gmail. Por favor, conéctala aquí:\n\n${loginUrl}`;
+        return `❌ **Cuenta de Google no conectada**\n\nNecesito tu permiso para acceder a Gmail. Por favor, conéctala aquí:\n\n[TELEGRAM_WEB_APP:${loginUrl}]`;
       }
       throw e;
     }
@@ -190,7 +198,7 @@ registerTool({
     } catch (error: any) {
         if (error.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
           const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
-          return `❌ **Cuenta de Google no conectada**\n\nNecesito tu permiso para enviar correos. Conéctala aquí:\n\n${loginUrl}`;
+          return `❌ **Cuenta de Google no conectada**\n\nNecesito tu permiso para enviar correos. Conéctala aquí:\n\n[TELEGRAM_WEB_APP:${loginUrl}]`;
         }
         return `Error sending email: ${error.message}`;
     }
@@ -221,7 +229,7 @@ registerTool({
     } catch (e: any) {
       if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
         const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
-        return `❌ **Calendar no conectado**\n\nConecta tu cuenta para ver tus eventos:\n\n${loginUrl}`;
+        return `❌ **Calendar no conectado**\n\nConecta tu cuenta para ver tus eventos:\n\n[TELEGRAM_WEB_APP:${loginUrl}]`;
       }
       throw e;
     }
@@ -253,7 +261,7 @@ registerTool({
     } catch (e: any) {
       if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
         const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
-        return `❌ **Calendar no conectado**\n\nConecta tu cuenta para crear eventos:\n\n${loginUrl}`;
+        return `❌ **Calendar no conectado**\n\nConecta tu cuenta para crear eventos:\n\n[TELEGRAM_WEB_APP:${loginUrl}]`;
       }
       throw e;
     }
@@ -280,7 +288,7 @@ const contactsListDef: ToolDefinition = {
       } catch (e: any) {
         if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
           const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
-          return `❌ **Contactos no conectados**\n\nConecta tu cuenta para ver tus contactos:\n\n${loginUrl}`;
+          return `❌ **Contactos no conectados**\n\nConecta tu cuenta para ver tus contactos:\n\n[TELEGRAM_WEB_APP:${loginUrl}]`;
         }
         throw e;
       }
@@ -309,7 +317,7 @@ const sheetsGetDef: ToolDefinition = {
       } catch (e: any) {
         if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
           const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
-          return `❌ **Sheets no conectado**\n\nConecta tu cuenta para leer hojas de cálculo:\n\n${loginUrl}`;
+          return `❌ **Sheets no conectado**\n\nConecta tu cuenta para leer hojas de cálculo:\n\n[TELEGRAM_WEB_APP:${loginUrl}]`;
         }
         throw e;
       }
@@ -340,7 +348,7 @@ const sheetsAppendDef: ToolDefinition = {
       } catch (e: any) {
         if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
           const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
-          return `❌ **Sheets no conectado**\n\nConecta tu cuenta para añadir datos:\n\n${loginUrl}`;
+          return `❌ **Sheets no conectado**\n\nConecta tu cuenta para añadir datos:\n\n[TELEGRAM_WEB_APP:${loginUrl}]`;
         }
         throw e;
       }
@@ -368,7 +376,7 @@ const docsCatDef: ToolDefinition = {
       } catch (e: any) {
         if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
           const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
-          return `❌ **Google Docs no conectado**\n\nConecta tu cuenta para leer documentos:\n\n${loginUrl}`;
+          return `❌ **Google Docs no conectado**\n\nConecta tu cuenta para leer documentos:\n\n[TELEGRAM_WEB_APP:${loginUrl}]`;
         }
         throw e;
       }
