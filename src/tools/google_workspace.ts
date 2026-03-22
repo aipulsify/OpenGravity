@@ -1,4 +1,5 @@
 import { registerTool, type ToolDefinition } from '../agent/tools.js';
+import { getValidToken } from '../memory/google_tokens.js';
 import { env } from '../config/env.js';
 import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
@@ -40,7 +41,7 @@ function ensureGogBinary() {
 }
 
 // On Linux (Vercel): write credentials and token from env vars to /tmp so gog can find them
-function setupGogAuth(accountToUse?: string) {
+async function setupGogAuth(telegramId: string, accountToUse?: string) {
   if (!IS_WINDOWS) {
     try {
       if (!existsSync(GOG_CONFIG_DIR)) mkdirSync(GOG_CONFIG_DIR, { recursive: true });
@@ -56,7 +57,7 @@ function setupGogAuth(accountToUse?: string) {
         } 
       };
 
-      // Force gogcli to use a file-based keyring instead of D-Bus Secret Service on Lambda
+      // Force gogcli to use a file-based keyring
       execSync(`${gogBin} config set keyring_backend file`, envOpts);
 
       // 1. Write the GCP Client ID Credentials
@@ -68,28 +69,33 @@ function setupGogAuth(accountToUse?: string) {
         }
       }
       
-      // 2. Import the User Session Token into the file-based keyring naturally
-      if (process.env.GOG_TOKEN_JSON && resolvedTargetAccount) {
+      // 2. Fetch User-Specific Token from DB/API
+      const accessToken = await getValidToken(telegramId);
+      if (accessToken && resolvedTargetAccount) {
+        const tokenJson = JSON.stringify({ access_token: accessToken, token_type: 'Bearer' });
         const tempTokenPath = join('/tmp', `temp_token_${resolvedTargetAccount}.json`);
-        writeFileSync(tempTokenPath, process.env.GOG_TOKEN_JSON);
+        writeFileSync(tempTokenPath, tokenJson);
         
         try {
-          execSync(`${gogBin} auth tokens import ${tempTokenPath} --account "${resolvedTargetAccount}" --no-input`, envOpts);
+          execSync(`${gogBin} auth tokens import --file "${tempTokenPath}" --account "${resolvedTargetAccount}" --no-input`, envOpts);
         } catch (importErr: any) {
           console.error('[setupGogAuth] Error importing token:', importErr.message);
         } finally {
           if (existsSync(tempTokenPath)) unlinkSync(tempTokenPath);
         }
+      } else if (!accessToken) {
+          throw new Error('GOOGLE_ACCOUNT_NOT_CONNECTED');
       }
-    } catch (e) {
-      console.warn('Could not setup gog credentials:', e);
+    } catch (e: any) {
+      console.warn('Could not setup gog credentials:', e.message);
+      throw e;
     }
   }
 }
 
-async function runGogCommand(command: string, account?: string): Promise<string> {
+async function runGogCommand(telegramId: string, command: string, account?: string): Promise<string> {
   const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
-  setupGogAuth(resolvedAccount);
+  await setupGogAuth(telegramId, resolvedAccount);
   const gogBin = ensureGogBinary();
   
   try {
@@ -132,8 +138,16 @@ const gmailSearchDef: ToolDefinition = {
 
 registerTool({
   definition: gmailSearchDef,
-  execute: async ({ query, max = 10, account }) => {
-    return runGogCommand(`gmail search "${query}" --max ${max} --json --no-input`, account);
+  execute: async ({ query, max = 10, account }, { telegramId }) => {
+    try {
+      return await runGogCommand(String(telegramId), `gmail search "${query}" --max ${max} --json --no-input`, account);
+    } catch (e: any) {
+      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
+        const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
+        return `❌ **Cuenta de Google no conectada**\n\nNecesito tu permiso para acceder a Gmail. Por favor, conéctala aquí:\n\n${loginUrl}`;
+      }
+      throw e;
+    }
   }
 });
 
@@ -155,11 +169,11 @@ const gmailSendDef: ToolDefinition = {
 
 registerTool({
   definition: gmailSendDef,
-  execute: async ({ to, subject, body, account }) => {
-    const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
-    setupGogAuth(resolvedAccount);
-    
+  execute: async ({ to, subject, body, account }, { telegramId }) => {
     try {
+      const resolvedAccount = account && account.includes('@') ? account : process.env.GOG_ACCOUNT;
+      await setupGogAuth(String(telegramId), resolvedAccount);
+      
       const accountFlag = resolvedAccount ? `--account "${resolvedAccount}"` : '';
       const gogBin = ensureGogBinary();
       const output = execSync(`${gogBin} gmail send --to "${to}" --subject "${subject}" --body-file - ${accountFlag}`, {
@@ -174,6 +188,10 @@ registerTool({
       });
       return output || 'Email sent successfully.';
     } catch (error: any) {
+        if (error.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
+          const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
+          return `❌ **Cuenta de Google no conectada**\n\nNecesito tu permiso para enviar correos. Conéctala aquí:\n\n${loginUrl}`;
+        }
         return `Error sending email: ${error.message}`;
     }
   }
@@ -197,8 +215,16 @@ const calendarListDef: ToolDefinition = {
 
 registerTool({
   definition: calendarListDef,
-  execute: async ({ calendarId, from, to, account }) => {
-    return runGogCommand(`calendar events "${calendarId}" --from "${from}" --to "${to}" --json`, account);
+  execute: async ({ calendarId, from, to, account }, { telegramId }) => {
+    try {
+      return await runGogCommand(String(telegramId), `calendar events "${calendarId}" --from "${from}" --to "${to}" --json`, account);
+    } catch (e: any) {
+      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
+        const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
+        return `❌ **Calendar no conectado**\n\nConecta tu cuenta para ver tus eventos:\n\n${loginUrl}`;
+      }
+      throw e;
+    }
   }
 });
 
@@ -221,8 +247,16 @@ const calendarCreateDef: ToolDefinition = {
 
 registerTool({
   definition: calendarCreateDef,
-  execute: async ({ calendarId, summary, from, to, account }) => {
-    return runGogCommand(`calendar create "${calendarId}" --summary "${summary}" --from "${from}" --to "${to}" --json`, account);
+  execute: async ({ calendarId, summary, from, to, account }, { telegramId }) => {
+    try {
+      return await runGogCommand(String(telegramId), `calendar create "${calendarId}" --summary "${summary}" --from "${from}" --to "${to}" --json`, account);
+    } catch (e: any) {
+      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
+        const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
+        return `❌ **Calendar no conectado**\n\nConecta tu cuenta para crear eventos:\n\n${loginUrl}`;
+      }
+      throw e;
+    }
   }
 });
 
@@ -240,8 +274,16 @@ const contactsListDef: ToolDefinition = {
   
   registerTool({
     definition: contactsListDef,
-    execute: async ({ max = 20 }) => {
-      return runGogCommand(`contacts list --max ${max} --json`);
+    execute: async ({ max = 20 }, { telegramId }) => {
+      try {
+        return await runGogCommand(String(telegramId), `contacts list --max ${max} --json`);
+      } catch (e: any) {
+        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
+          const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
+          return `❌ **Contactos no conectados**\n\nConecta tu cuenta para ver tus contactos:\n\n${loginUrl}`;
+        }
+        throw e;
+      }
     }
   });
 
@@ -261,8 +303,16 @@ const sheetsGetDef: ToolDefinition = {
   
   registerTool({
     definition: sheetsGetDef,
-    execute: async ({ sheetId, range }) => {
-      return runGogCommand(`sheets get "${sheetId}" "${range}" --json`);
+    execute: async ({ sheetId, range }, { telegramId }) => {
+      try {
+        return await runGogCommand(String(telegramId), `sheets get "${sheetId}" "${range}" --json`);
+      } catch (e: any) {
+        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
+          const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
+          return `❌ **Sheets no conectado**\n\nConecta tu cuenta para leer hojas de cálculo:\n\n${loginUrl}`;
+        }
+        throw e;
+      }
     }
   });
 
@@ -283,9 +333,17 @@ const sheetsAppendDef: ToolDefinition = {
   
   registerTool({
     definition: sheetsAppendDef,
-    execute: async ({ sheetId, range, values }) => {
-      const valuesJson = JSON.stringify(values);
-      return runGogCommand(`sheets append "${sheetId}" "${range}" --values-json '${valuesJson}' --insert INSERT_ROWS`);
+    execute: async ({ sheetId, range, values }, { telegramId }) => {
+      try {
+        const valuesJson = JSON.stringify(values);
+        return await runGogCommand(String(telegramId), `sheets append "${sheetId}" "${range}" --values-json '${valuesJson}' --insert INSERT_ROWS`);
+      } catch (e: any) {
+        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
+          const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
+          return `❌ **Sheets no conectado**\n\nConecta tu cuenta para añadir datos:\n\n${loginUrl}`;
+        }
+        throw e;
+      }
     }
   });
 
@@ -304,8 +362,16 @@ const docsCatDef: ToolDefinition = {
   
   registerTool({
     definition: docsCatDef,
-    execute: async ({ docId }) => {
-      return runGogCommand(`docs cat "${docId}"`);
+    execute: async ({ docId }, { telegramId }) => {
+      try {
+        return await runGogCommand(String(telegramId), `docs cat "${docId}"`);
+      } catch (e: any) {
+        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
+          const loginUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/api/auth/google/login?telegram_id=${telegramId}`;
+          return `❌ **Google Docs no conectado**\n\nConecta tu cuenta para leer documentos:\n\n${loginUrl}`;
+        }
+        throw e;
+      }
     }
   });
 
@@ -327,10 +393,13 @@ const openWorkspaceAppDef: ToolDefinition = {
 
 registerTool({
     definition: openWorkspaceAppDef,
-    execute: async ({ id, type, title, telegram_id }) => {
+    execute: async ({ id, type, title, telegram_id }, { telegramId }) => {
         try {
+            // Use the telegramId from context if available, fallback to the one in args
+            const resolvedTelegramId = telegramId || telegram_id;
+            
             // 1. Fetch content
-            const content = await runGogCommand(type === 'doc' ? `docs cat "${id}"` : `sheets get "${id}" "A1:Z100" --json`);
+            const content = await runGogCommand(String(resolvedTelegramId), type === 'doc' ? `docs cat "${id}"` : `sheets get "${id}" "A1:Z100" --json`);
             
             // Validate content - check for common Google CLI error patterns
             if (!content || content.startsWith('Error:') || content.includes('not found') || content.includes('Google API error')) {

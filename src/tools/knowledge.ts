@@ -47,13 +47,14 @@ export const ogSearchKnowledgeDef: ToolDefinition = {
 
 registerTool({
   definition: ogSaveKnowledgeDef,
-  execute: async ({ topic, content, category, telegram_id }: { topic: string, content: string, category?: string, telegram_id: number }) => {
+  execute: async ({ topic, content, category, telegram_id }, { telegramId }) => {
     try {
+      const resolvedId = telegramId || telegram_id;
       const response = await fetch(API_BASE, {
         method: 'POST',
         headers: HEADERS,
         body: JSON.stringify({
-          telegram_id,
+          telegram_id: resolvedId,
           topic,
           content,
           category: category || 'fact'
@@ -71,9 +72,10 @@ registerTool({
 
 registerTool({
   definition: ogSearchKnowledgeDef,
-  execute: async ({ query, category, telegram_id }: { query: string, category?: string, telegram_id: number }) => {
+  execute: async ({ query, category, telegram_id }, { telegramId }) => {
     try {
-      let url = `${API_BASE}?telegram_id=${telegram_id}&query=${encodeURIComponent(query)}`;
+      const resolvedId = telegramId || telegram_id;
+      let url = `${API_BASE}?telegram_id=${resolvedId}&query=${encodeURIComponent(query)}`;
       if (category) url += `&category=${category}`;
 
       const response = await fetch(url, { headers: HEADERS });

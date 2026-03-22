@@ -17,7 +17,7 @@ export const pbhGetArticlesDef: ToolDefinition = {
 
 registerTool({
   definition: pbhGetArticlesDef,
-  execute: async ({ limit, period, status }) => {
+  execute: async ({ limit, period, status }, { telegramId }) => {
     try {
       const params = new URLSearchParams();
       if (limit) params.append('limit', limit.toString());
@@ -61,7 +61,7 @@ export const pbhQueueGenerateDef: ToolDefinition = {
 
 registerTool({
   definition: pbhQueueGenerateDef,
-  execute: async ({ guid, title, source_url }) => {
+  execute: async ({ guid, title, source_url }, { telegramId }) => {
     try {
       const url = `${env.PERSONAL_BRAND_HUB_ADMIN_URL}/queue_generate.php`;
       console.log(`[pbh_queue_generate] Calling API: ${url} for guid: ${guid}`);
@@ -100,7 +100,7 @@ export const pbhGetArticleStatusDef: ToolDefinition = {
 
 registerTool({
   definition: pbhGetArticleStatusDef,
-  execute: async ({ guid }) => {
+  execute: async ({ guid }, { telegramId }) => {
     try {
       const url = `${env.PERSONAL_BRAND_HUB_ADMIN_URL}/get_article_status.php?guid=${guid}`;
       console.log(`[pbh_get_article_status] Calling API: ${url}`);
@@ -136,7 +136,7 @@ export const pbhOpenMiniAppDef: ToolDefinition = {
 
 registerTool({
   definition: pbhOpenMiniAppDef,
-  execute: async ({ guid, url }) => {
+  execute: async ({ guid, url }, { telegramId }) => {
     let targetUrl = url;
     if (!targetUrl && guid) {
       // PersonalBrandHub uses React Router: /article/:guid

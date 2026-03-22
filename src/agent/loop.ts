@@ -61,7 +61,7 @@ export async function processUserMessage(telegramId: number, userContent: string
         try {
           const tool = toolRegistry[fname];
           if (!tool) throw new Error(`Tool ${fname} not found`);
-          toolResponseContent = await tool.execute(fargs);
+          toolResponseContent = await tool.execute(fargs, { telegramId });
         } catch (err: any) {
           console.error(`Error executing tool ${fname}:`, err);
           toolResponseContent = `Error: ${err.message}`;

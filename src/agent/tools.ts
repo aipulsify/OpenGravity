@@ -10,7 +10,7 @@ export interface ToolDefinition {
 
 export interface Tool {
   definition: ToolDefinition;
-  execute: (args: any) => Promise<string> | string;
+  execute: (args: any, context: { telegramId: number }) => Promise<string> | string;
 }
 
 export const toolRegistry: Record<string, Tool> = {};
