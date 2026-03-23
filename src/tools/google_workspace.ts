@@ -4,7 +4,7 @@ import { env } from '../config/env.js';
 import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import { platform } from 'os';
-import { writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
 const execPromise = promisify(exec);
@@ -27,7 +27,7 @@ function ensureGogBinary() {
   try {
     if (!existsSync(TARGET_GOG_BIN)) {
       console.log(`[ensureGogBinary] Copying binary from ${SOURCE_GOG_BIN} to ${TARGET_GOG_BIN}...`);
-      const binaryData = require('fs').readFileSync(SOURCE_GOG_BIN);
+      const binaryData = readFileSync(SOURCE_GOG_BIN);
       writeFileSync(TARGET_GOG_BIN, binaryData);
     }
     

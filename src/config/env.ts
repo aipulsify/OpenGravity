@@ -8,6 +8,7 @@ const REQUIRED_VARS = [
   'GROQ_API_KEY',
   'CLIENTVERSE_API_URL',
   'CLIENTVERSE_API_KEY',
+  'PERSONAL_BRAND_HUB_BASE_URL',
 ];
 
 for (const key of REQUIRED_VARS) {
@@ -32,7 +33,7 @@ export const env = {
   CLIENTVERSE_API_KEY: process.env.CLIENTVERSE_API_KEY!,
   PERSONAL_BRAND_HUB_URL: process.env.PERSONAL_BRAND_HUB_URL || 'https://personalbrandhub.aipulsify.com/api/public',
   PERSONAL_BRAND_HUB_ADMIN_URL: process.env.PERSONAL_BRAND_HUB_ADMIN_URL || 'https://personalbrandhub.aipulsify.com/api/admin',
-  PERSONAL_BRAND_HUB_BASE_URL: process.env.PERSONAL_BRAND_HUB_BASE_URL || 'https://personalbrandhub.aipulsify.com',
+  PERSONAL_BRAND_HUB_BASE_URL: process.env.PERSONAL_BRAND_HUB_BASE_URL!,
 };
 
 // Check if there are valid user IDs
