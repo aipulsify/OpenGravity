@@ -1,7 +1,7 @@
 import { bot } from './bot/telegram.js';
 import { initDatabase } from './memory/api.js';
 
-console.log('Starting OpenGravity...'); // Ghost deploy trigger: Multi-tenant OAuth active
+console.log('Starting OpenGravity...'); // Final Ghost deploy: ESM fixed & Base URL sync
 
 // Initialize database before starting bot
 await initDatabase();
