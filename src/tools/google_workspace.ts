@@ -75,7 +75,7 @@ async function setupGogAuth(telegramId: string, accountToUse?: string) {
       const accessToken = await getValidToken(telegramId);
       if (accessToken && resolvedTargetAccount) {
         console.log(`[setupGogAuth] Token found. Importing...`);
-        const tokenJson = JSON.stringify({ access_token: accessToken, token_type: 'Bearer' });
+        const tokenJson = JSON.stringify({ access_token: accessToken, token_type: 'Bearer', email: resolvedTargetAccount });
         const tempTokenPath = join('/tmp', `temp_token_${resolvedTargetAccount}.json`);
         writeFileSync(tempTokenPath, tokenJson);
         
