@@ -1,7 +1,7 @@
 import { bot } from './bot/telegram.js';
 import { initDatabase } from './memory/api.js';
 
-console.log('Starting OpenGravity...'); // Final Ghost deploy: ESM fixed & Base URL sync
+console.log('Starting OpenGravity...'); // Storage Debugging: Enhanced logging active
 
 // Initialize database before starting bot
 await initDatabase();

@@ -44,10 +44,14 @@ export async function saveGoogleToken(telegramId: string, token: GoogleToken): P
             })
         });
         
-        const data = await res.json();
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : { success: false, msg: 'Empty response' };
+        if (!data.success) {
+            console.error(`[saveGoogleToken] API Error (${res.status}):`, data.msg || data.error || text);
+        }
         return data.success;
     } catch (e) {
-        console.error(`[saveGoogleToken] Error:`, e);
+        console.error(`[saveGoogleToken] Network/Parse Error:`, e);
         return false;
     }
 }
