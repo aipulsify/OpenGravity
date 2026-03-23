@@ -80,7 +80,7 @@ async function setupGogAuth(telegramId: string, accountToUse?: string) {
         writeFileSync(tempTokenPath, tokenJson);
         
         try {
-          execSync(`${gogBin} auth tokens import --file "${tempTokenPath}" --account "${resolvedTargetAccount}" --no-input`, envOpts);
+          execSync(`${gogBin} auth tokens import "${tempTokenPath}" --account "${resolvedTargetAccount}" --no-input`, envOpts);
         } catch (importErr: any) {
           console.error('[setupGogAuth] Error importing token:', importErr.message);
         } finally {
