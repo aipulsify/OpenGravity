@@ -77,53 +77,49 @@ export async function deleteGoogleToken(telegramId: string): Promise<boolean> {
 /**
  * Refreshes the access token using the refresh token if it's expired or about to expire.
  */
-export async function getValidToken(telegramId: string): Promise<string | null> {
-    const row = await getGoogleToken(telegramId);
-    if (!row) return null;
+export async function getValidToken(telegramId: string): Promise<GoogleToken | null> {
+    const token = await getGoogleToken(telegramId);
+    if (!token) return null;
 
-    const expiryDate = new Date(row.token_expiry);
+    // Check if close to expiry (less than 5 mins)
+    const expiry = new Date(token.token_expiry);
     const now = new Date();
-    const fiveMinutes = 5 * 60 * 1000;
+    
+    if (expiry <= new Date(now.getTime() + 5 * 60000)) {
+        console.log(`[getValidToken] Token for ${telegramId} expiring. Refreshing...`);
+        try {
+            const res = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    refresh_token: token.refresh_token,
+                    client_id: process.env.GOOGLE_CLIENT_ID || '',
+                    client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+                    grant_type: 'refresh_token',
+                }),
+            });
 
-    // If still valid for at least 5 minutes, return access token
-    if (expiryDate.getTime() - now.getTime() > fiveMinutes) {
-        return row.access_token;
-    }
+            const data = await res.json();
+            if (data.error) {
+                if (data.error === 'invalid_grant') {
+                    await deleteGoogleToken(telegramId);
+                }
+                throw new Error(data.error);
+            }
 
-    // Otherwise, refresh token
-    console.log(`[getValidToken] Refreshing token for user ${telegramId}...`);
-    try {
-        const res = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                refresh_token: row.refresh_token,
-                client_id: process.env.GOOGLE_CLIENT_ID || '',
-                client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
-                grant_type: 'refresh_token',
-            }),
-        });
-
-        const data = await res.json();
-
-        if (data.error === 'invalid_grant') {
-            await deleteGoogleToken(telegramId);
+            const updatedToken: GoogleToken = {
+                ...token,
+                access_token: data.access_token,
+                token_expiry: new Date(Date.now() + data.expires_in * 1000).toISOString()
+            };
+            
+            await saveGoogleToken(telegramId, updatedToken);
+            return updatedToken;
+        } catch (e) {
+            console.error(`[getValidToken] Refresh failed:`, e);
             return null;
         }
-
-        if (!data.access_token) throw new Error(data.error || 'Unknown refresh error');
-
-        const newExpiry = new Date(Date.now() + data.expires_in * 1000).toISOString();
-        const updatedToken: GoogleToken = {
-            ...row,
-            access_token: data.access_token,
-            token_expiry: newExpiry
-        };
-
-        await saveGoogleToken(telegramId, updatedToken);
-        return data.access_token;
-    } catch (e) {
-        console.error(`[getValidToken] Error refreshing:`, e);
-        return null;
     }
+    
+    return token;
 }

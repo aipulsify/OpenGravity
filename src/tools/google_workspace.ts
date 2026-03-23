@@ -72,10 +72,15 @@ async function setupGogAuth(telegramId: string, accountToUse?: string) {
       
       // 2. Fetch User-Specific Token from DB/API
       console.log(`[setupGogAuth] Fetching token for ${telegramId}...`);
-      const accessToken = await getValidToken(telegramId);
-      if (accessToken && resolvedTargetAccount) {
+      const tokenData = await getValidToken(telegramId);
+      if (tokenData && resolvedTargetAccount) {
         console.log(`[setupGogAuth] Token found. Importing...`);
-        const tokenJson = JSON.stringify({ access_token: accessToken, token_type: 'Bearer', email: resolvedTargetAccount });
+        const tokenJson = JSON.stringify({ 
+          access_token: tokenData.access_token, 
+          refresh_token: tokenData.refresh_token,
+          token_type: 'Bearer', 
+          email: resolvedTargetAccount 
+        });
         const tempTokenPath = join('/tmp', `temp_token_${resolvedTargetAccount}.json`);
         writeFileSync(tempTokenPath, tokenJson);
         
@@ -86,7 +91,7 @@ async function setupGogAuth(telegramId: string, accountToUse?: string) {
         } finally {
           if (existsSync(tempTokenPath)) unlinkSync(tempTokenPath);
         }
-      } else if (!accessToken) {
+      } else if (!tokenData) {
           console.log(`[setupGogAuth] No token found for ${telegramId}. Throwing error.`);
           throw new Error('GOOGLE_ACCOUNT_NOT_CONNECTED');
       }

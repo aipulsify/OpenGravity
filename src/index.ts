@@ -1,7 +1,7 @@
 import { bot } from './bot/telegram.js';
 import { initDatabase } from './memory/api.js';
 
-console.log('Starting OpenGravity...'); // Final Final Fix: Added email to gog token import
+console.log('Starting OpenGravity...'); // FINAL FINAL FINAL: Added refresh_token & email to gog import
 
 // Initialize database before starting bot
 await initDatabase();
