@@ -1,0 +1,17 @@
+Sends the specified message to the recipients in the `To`, `Cc`, and `Bcc` headers. For example usage, see Sending email.
+
+Usage: gws users messages send [OPTIONS]
+
+Options:
+      --params <JSON>               JSON string for URL/Query parameters
+      --sanitize <TEMPLATE>         Sanitize API responses through a Model Armor template. Requires cloud-platform scope. Format: projects/PROJECT/locations/LOCATION/templates/TEMPLATE. Also reads GWS_SANITIZE_TEMPLATE env var.
+      --dry-run                     Validate the request locally without sending it to the API
+  -o, --output <PATH>               Output file path for binary responses
+      --format <FORMAT>             Output format: json (default), table, yaml, csv
+      --json <JSON>                 JSON string for the request body
+      --upload <PATH>               Local file path to upload as media content (multipart upload)
+      --upload-content-type <MIME>  MIME type of the uploaded file content (e.g. text/markdown). If omitted, detected from file extension or metadata mimeType
+      --page-all                    Auto-paginate through all results, outputting one JSON line per page (NDJSON)
+      --page-limit <N>              Maximum number of pages to fetch when using --page-all (default: 10)
+      --page-delay <MS>             Delay in milliseconds between page fetches (default: 100)
+  -h, --help                        Print help

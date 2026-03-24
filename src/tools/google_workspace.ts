@@ -71,7 +71,7 @@ async function runGwsCommand(telegramId: string, resourcePath: string, params: o
     }
     
     if (body) {
-        fullCommand += ` --body-json ${escapeJsonArg(JSON.stringify(body))}`;
+        fullCommand += ` --json ${escapeJsonArg(JSON.stringify(body))}`;
     }
 
     // 3. Set environment variables
