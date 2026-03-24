@@ -16,24 +16,20 @@ const TARGET_GWS_BIN = IS_WINDOWS ? SOURCE_GWS_BIN : '/tmp/gws_linux';
 
 /**
  * Ensures the gws binary is executable.
- * On Vercel (Linux), we must copy it to /tmp because the source dir is read-only.
  */
 function ensureGwsBinary() {
   if (IS_WINDOWS) return TARGET_GWS_BIN;
-  
   try {
     if (!existsSync(TARGET_GWS_BIN)) {
       console.log(`[ensureGwsBinary] Copying binary from ${SOURCE_GWS_BIN} to ${TARGET_GWS_BIN}...`);
       const binaryData = readFileSync(SOURCE_GWS_BIN);
       writeFileSync(TARGET_GWS_BIN, binaryData);
     }
-    
-    // Always attempt chmod to be safe (it's allowed in /tmp)
     execSync(`chmod +x ${TARGET_GWS_BIN}`);
     return TARGET_GWS_BIN;
   } catch (err: any) {
     console.error(`[ensureGwsBinary] Failed to prepare binary: ${err.message}`);
-    return SOURCE_GWS_BIN; // Fallback to original path
+    return SOURCE_GWS_BIN;
   }
 }
 
@@ -42,10 +38,8 @@ function ensureGwsBinary() {
  */
 function escapeJsonArg(json: string): string {
     if (IS_WINDOWS) {
-        // For Windows PowerShell/CMD, escape double quotes
         return `"${json.replace(/"/g, '\\"')}"`;
     }
-    // For Unix/Linux, wrap in single quotes
     return `'${json}'`;
 }
 
@@ -54,58 +48,27 @@ function escapeJsonArg(json: string): string {
  */
 async function runGwsCommand(telegramId: string, resourcePath: string, params: object = {}, body: object | null = null): Promise<string> {
   const gwsBin = ensureGwsBinary();
-  
-  // 1. Fetch User-Specific Token from DB/API
   const tokenData = await getValidToken(telegramId);
-  if (!tokenData) {
-    console.log(`[runGwsCommand] No token found for ${telegramId}. Throwing error.`);
-    throw new Error('GOOGLE_ACCOUNT_NOT_CONNECTED');
-  }
+  if (!tokenData) throw new Error('GOOGLE_ACCOUNT_NOT_CONNECTED');
 
   try {
-    // 2. Build command components with structured flags for v0.19.0
     let fullCommand = `${gwsBin} ${resourcePath}`;
-    
-    if (Object.keys(params).length > 0) {
-        fullCommand += ` --params ${escapeJsonArg(JSON.stringify(params))}`;
-    }
-    
-    if (body) {
-        fullCommand += ` --json ${escapeJsonArg(JSON.stringify(body))}`;
-    }
+    if (Object.keys(params).length > 0) fullCommand += ` --params ${escapeJsonArg(JSON.stringify(params))}`;
+    if (body) fullCommand += ` --json ${escapeJsonArg(JSON.stringify(body))}`;
 
-    // 3. Set environment variables
     const envOptions = {
-        env: { 
-          ...process.env, 
-          GOOGLE_WORKSPACE_CLI_TOKEN: tokenData.access_token,
-          GOOGLE_WORKSPACE_CLI_CONFIG_DIR: IS_WINDOWS ? undefined : '/tmp',
-          GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND: 'file'
-        }
+        env: { ...process.env, GOOGLE_WORKSPACE_CLI_TOKEN: tokenData.access_token, GOOGLE_WORKSPACE_CLI_CONFIG_DIR: IS_WINDOWS ? undefined : '/tmp', GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND: 'file' }
     };
 
-    console.log(`[runGwsCommand] Executing Discovery Method: ${resourcePath}`);
-    console.log(`[runGwsCommand] Params: ${JSON.stringify(params)}`);
-    console.log(`[runGwsCommand] Full Command: ${fullCommand.replace(tokenData.access_token, '***')}`);
-    
+    console.log(`[runGwsCommand] Executing: ${resourcePath} | Params: ${JSON.stringify(params)}`);
     const { stdout, stderr } = await execPromise(fullCommand, envOptions);
-
-    if (stderr && stderr.length > 0) {
-      console.warn(`gws stderr: ${stderr}`);
-    }
-
+    if (stderr && stderr.length > 0) console.warn(`gws stderr: ${stderr}`);
+    
     console.log(`[runGwsCommand] Success. Response length: ${stdout.length}`);
-    if (stdout.length < 2000) {
-        console.log(`[runGwsCommand] Raw Response: ${stdout}`);
-    } else {
-        console.log(`[runGwsCommand] Response starts with: ${stdout.substring(0, 500)}...`);
-    }
-
     return stdout || 'Command executed successfully.';
   } catch (error: any) {
     console.error(`Error executing gws command: ${error.message}`);
     const stderr = error.stderr ? `\n\nDetalles del error:\n${error.stderr}` : '';
-    console.log(`[runGwsCommand] Failure. Stderr: ${error.stderr}`);
     return `Algo ha fallado al comunicarnos con Google Workspace (${resourcePath}): ${error.message}${stderr}`;
   }
 }
@@ -122,29 +85,17 @@ function handleAuthError(telegramId: string, messagePrefix: string) {
 // GENERIC TOOL 
 // -----------------------------------------------------------------------------
 
-const gwsExecuteDef: ToolDefinition = {
-    name: 'gws_execute',
-    description: 'Execute any Google Workspace command. Params: resourcePath (e.g. "calendar events list"), params (JSON object for URL params), body (JSON object for request body).',
-    parameters: {
-        type: 'object',
-        properties: {
-            resourcePath: { type: 'string', description: 'The GWS resource path (e.g., "calendar events list")' },
-            params: { type: 'object', description: 'URL parameters' },
-            body: { type: 'object', description: 'Request body' }
-        },
-        required: ['resourcePath']
-    }
-};
-
 registerTool({
-    definition: gwsExecuteDef,
+    definition: {
+        name: 'gws_execute',
+        description: 'Execute any Google Workspace command. IMPORTANT: Use full resource paths (e.g., "docs documents create", "gmail users messages list"). Params: resourcePath, params (URL obj), body (JSON obj).',
+        parameters: { type: 'object', properties: { resourcePath: { type: 'string' }, params: { type: 'object' }, body: { type: 'object' } }, required: ['resourcePath'] }
+    },
     execute: async ({ resourcePath, params = {}, body = null }, { telegramId }) => {
         try {
             return await runGwsCommand(String(telegramId), resourcePath, params, body);
         } catch (e: any) {
-            if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-                return handleAuthError(String(telegramId), 'Cuenta de Google no conectada');
-            }
+            if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'Cuenta de Google no conectada');
             throw e;
         }
     }
@@ -158,11 +109,7 @@ registerTool({
   definition: {
     name: 'gmail_search',
     description: 'Search for emails in Gmail.',
-    parameters: {
-      type: 'object',
-      properties: { query: { type: 'string' }, max: { type: 'number' } },
-      required: ['query']
-    }
+    parameters: { type: 'object', properties: { query: { type: 'string' }, max: { type: 'number' } }, required: ['query'] }
   },
   execute: async ({ query, max = 10 }, { telegramId }) => {
     try {
@@ -178,11 +125,7 @@ registerTool({
   definition: {
     name: 'gmail_send',
     description: 'Send an email via Gmail.',
-    parameters: {
-      type: 'object',
-      properties: { to: { type: 'string' }, subject: { type: 'string' }, body: { type: 'string' } },
-      required: ['to', 'subject', 'body']
-    }
+    parameters: { type: 'object', properties: { to: { type: 'string' }, subject: { type: 'string' }, body: { type: 'string' } }, required: ['to', 'subject', 'body'] }
   },
   execute: async ({ to, subject, body }, { telegramId }) => {
     try {
@@ -202,16 +145,8 @@ registerTool({
 registerTool({
   definition: {
     name: 'calendar_list_events',
-    description: 'List calendar events. IMPORTANT: Always use the current year (2026). If you are unsure of today\'s date, call get_current_time first.',
-    parameters: {
-      type: 'object',
-      properties: { 
-          calendarId: { type: 'string', description: 'ID (e.g. "primary")' }, 
-          from: { type: 'string', description: 'ISO Start date (e.g. "2026-03-24T00:00:00Z")' }, 
-          to: { type: 'string', description: 'ISO End date' } 
-      },
-      required: ['calendarId', 'from', 'to']
-    }
+    description: 'List calendar events. IMPORTANT: Always use the current year (2026).',
+    parameters: { type: 'object', properties: { calendarId: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } }, required: ['calendarId', 'from', 'to'] }
   },
   execute: async ({ calendarId, from, to }, { telegramId }) => {
     try {
@@ -226,17 +161,8 @@ registerTool({
 registerTool({
   definition: {
     name: 'calendar_create_event',
-    description: 'Create a calendar event. IMPORTANT: Always use the current year (2026).',
-    parameters: {
-      type: 'object',
-      properties: { 
-          calendarId: { type: 'string', description: 'ID' }, 
-          summary: { type: 'string', description: 'Title' }, 
-          from: { type: 'string', description: 'ISO Start (e.g. "2026-03-24T10:00:00Z")' }, 
-          to: { type: 'string', description: 'ISO End' } 
-      },
-      required: ['calendarId', 'summary', 'from', 'to']
-    }
+    description: 'Create a calendar event.',
+    parameters: { type: 'object', properties: { calendarId: { type: 'string' }, summary: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } }, required: ['calendarId', 'summary', 'from', 'to'] }
   },
   execute: async ({ calendarId, summary, from, to }, { telegramId }) => {
     try {
@@ -252,6 +178,43 @@ registerTool({
 // -----------------------------------------------------------------------------
 // DRIVE / DOCS / SHEETS TOOLS
 // -----------------------------------------------------------------------------
+
+registerTool({
+    definition: {
+      name: 'docs_create',
+      description: 'Create a new Google Doc with a title.',
+      parameters: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] }
+    },
+    execute: async ({ title }, { telegramId }) => {
+      try {
+        return await runGwsCommand(String(telegramId), 'docs documents create', {}, { title });
+      } catch (e: any) {
+        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo crear documentos');
+        throw e;
+      }
+    }
+});
+
+registerTool({
+    definition: {
+      name: 'docs_append_text',
+      description: 'Append text to a Google Doc.',
+      parameters: { type: 'object', properties: { docId: { type: 'string' }, text: { type: 'string' } }, required: ['docId', 'text'] }
+    },
+    execute: async ({ docId, text }, { telegramId }) => {
+      try {
+        const body = { 
+            requests: [
+                { insertText: { text, location: { index: 1 } } }
+            ] 
+        };
+        return await runGwsCommand(String(telegramId), 'docs documents batchUpdate', { documentId: docId }, body);
+      } catch (e: any) {
+        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo editar el documento');
+        throw e;
+      }
+    }
+});
 
 registerTool({
     definition: {
@@ -338,7 +301,10 @@ registerTool({
     execute: async ({ id, type, title }, { telegramId }) => {
         try {
             if (!telegramId) throw new Error('CONTEXT_MISSING_TELEGRAM_ID');
-            const content = await runGwsCommand(String(telegramId), type === 'doc' ? 'docs documents get' : 'sheets spreadsheets values get', type === 'doc' ? { documentId: id } : { spreadsheetId: id, range: 'A1:Z100' });
+            const resource = type === 'doc' ? 'docs documents get' : 'sheets spreadsheets values get';
+            const params = type === 'doc' ? { documentId: id } : { spreadsheetId: id, range: 'A1:Z100' };
+            const content = await runGwsCommand(String(telegramId), resource, params);
+            
             const snapshotId = Math.random().toString(36).substring(2, 10);
             const knowledgeApi = `${env.CLIENTVERSE_API_URL}/api/opengravity/knowledge.php`;
             await fetch(knowledgeApi, {
