@@ -88,7 +88,7 @@ function handleAuthError(telegramId: string, messagePrefix: string) {
 registerTool({
     definition: {
         name: 'gws_execute',
-        description: 'Execute any Google Workspace command. IMPORTANT: Use full resource paths (e.g., "docs documents create", "gmail users messages list"). Params: resourcePath, params (URL obj), body (JSON obj).',
+        description: 'Execute any Google Workspace command. IMPORTANT: Use full resource paths (e.g., "docs documents create"). DO NOT use this for creating documents/sheets/slides if specialized tools exist. DO NOT send HTML content.',
         parameters: { type: 'object', properties: { resourcePath: { type: 'string' }, params: { type: 'object' }, body: { type: 'object' } }, required: ['resourcePath'] }
     },
     execute: async ({ resourcePath, params = {}, body = null }, { telegramId }) => {
@@ -182,7 +182,7 @@ registerTool({
 registerTool({
     definition: {
       name: 'docs_create',
-      description: 'Create a new Google Doc with a title.',
+      description: 'Create a NEW blank Google Doc. Returns the documentId. To add content, use docs_append_text afterwards.',
       parameters: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] }
     },
     execute: async ({ title }, { telegramId }) => {
@@ -198,7 +198,7 @@ registerTool({
 registerTool({
     definition: {
       name: 'docs_append_text',
-      description: 'Append text to a Google Doc.',
+      description: 'Append PLAIN TEXT to a Google Doc. IMPORTANT: DO NOT SEND HTML. Use only plain text or simple markdown symbols. Keep the text concise to avoid timeouts.',
       parameters: { type: 'object', properties: { docId: { type: 'string' }, text: { type: 'string' } }, required: ['docId', 'text'] }
     },
     execute: async ({ docId, text }, { telegramId }) => {
