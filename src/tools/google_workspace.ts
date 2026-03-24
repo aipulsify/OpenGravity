@@ -202,10 +202,14 @@ registerTool({
 registerTool({
   definition: {
     name: 'calendar_list_events',
-    description: 'List calendar events.',
+    description: 'List calendar events. IMPORTANT: Always use the current year (2026). If you are unsure of today\'s date, call get_current_time first.',
     parameters: {
       type: 'object',
-      properties: { calendarId: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } },
+      properties: { 
+          calendarId: { type: 'string', description: 'ID (e.g. "primary")' }, 
+          from: { type: 'string', description: 'ISO Start date (e.g. "2026-03-24T00:00:00Z")' }, 
+          to: { type: 'string', description: 'ISO End date' } 
+      },
       required: ['calendarId', 'from', 'to']
     }
   },
@@ -222,10 +226,15 @@ registerTool({
 registerTool({
   definition: {
     name: 'calendar_create_event',
-    description: 'Create a calendar event.',
+    description: 'Create a calendar event. IMPORTANT: Always use the current year (2026).',
     parameters: {
       type: 'object',
-      properties: { calendarId: { type: 'string' }, summary: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } },
+      properties: { 
+          calendarId: { type: 'string', description: 'ID' }, 
+          summary: { type: 'string', description: 'Title' }, 
+          from: { type: 'string', description: 'ISO Start (e.g. "2026-03-24T10:00:00Z")' }, 
+          to: { type: 'string', description: 'ISO End' } 
+      },
       required: ['calendarId', 'summary', 'from', 'to']
     }
   },

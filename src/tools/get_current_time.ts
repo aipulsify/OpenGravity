@@ -12,6 +12,13 @@ const definition: ToolDefinition = {
 registerTool({
   definition,
   execute: () => {
-    return new Date().toISOString();
+    const now = new Date();
+    return JSON.stringify({
+      iso: now.toISOString(),
+      local: now.toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }),
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      day: now.getDate()
+    });
   }
 });
