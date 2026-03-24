@@ -85,16 +85,27 @@ async function runGwsCommand(telegramId: string, resourcePath: string, params: o
     };
 
     console.log(`[runGwsCommand] Executing Discovery Method: ${resourcePath}`);
+    console.log(`[runGwsCommand] Params: ${JSON.stringify(params)}`);
+    console.log(`[runGwsCommand] Full Command: ${fullCommand.replace(tokenData.access_token, '***')}`);
     
     const { stdout, stderr } = await execPromise(fullCommand, envOptions);
 
     if (stderr && stderr.length > 0) {
       console.warn(`gws stderr: ${stderr}`);
     }
+
+    console.log(`[runGwsCommand] Success. Response length: ${stdout.length}`);
+    if (stdout.length < 2000) {
+        console.log(`[runGwsCommand] Raw Response: ${stdout}`);
+    } else {
+        console.log(`[runGwsCommand] Response starts with: ${stdout.substring(0, 500)}...`);
+    }
+
     return stdout || 'Command executed successfully.';
   } catch (error: any) {
     console.error(`Error executing gws command: ${error.message}`);
     const stderr = error.stderr ? `\n\nDetalles del error:\n${error.stderr}` : '';
+    console.log(`[runGwsCommand] Failure. Stderr: ${error.stderr}`);
     return `Algo ha fallado al comunicarnos con Google Workspace (${resourcePath}): ${error.message}${stderr}`;
   }
 }
