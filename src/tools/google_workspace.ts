@@ -4,7 +4,7 @@ import { env } from '../config/env.js';
 import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import { platform } from 'os';
-import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 const execPromise = promisify(exec);
@@ -38,9 +38,21 @@ function ensureGwsBinary() {
 }
 
 /**
+ * Escapes a JSON string for shell execution based on OS.
+ */
+function escapeJsonArg(json: string): string {
+    if (IS_WINDOWS) {
+        // For Windows PowerShell/CMD, escape double quotes
+        return `"${json.replace(/"/g, '\\"')}"`;
+    }
+    // For Unix/Linux, wrap in single quotes
+    return `'${json}'`;
+}
+
+/**
  * Executes a gws command with user-specific authentication.
  */
-async function runGwsCommand(telegramId: string, command: string): Promise<string> {
+async function runGwsCommand(telegramId: string, resourcePath: string, params: object = {}, body: object | null = null): Promise<string> {
   const gwsBin = ensureGwsBinary();
   
   // 1. Fetch User-Specific Token from DB/API
@@ -51,19 +63,30 @@ async function runGwsCommand(telegramId: string, command: string): Promise<strin
   }
 
   try {
-    // 2. Set environment variables for gws v0.19.0
+    // 2. Build command components with structured flags for v0.19.0
+    let fullCommand = `${gwsBin} ${resourcePath}`;
+    
+    if (Object.keys(params).length > 0) {
+        fullCommand += ` --params ${escapeJsonArg(JSON.stringify(params))}`;
+    }
+    
+    if (body) {
+        fullCommand += ` --body-json ${escapeJsonArg(JSON.stringify(body))}`;
+    }
+
+    // 3. Set environment variables
     const envOptions = {
         env: { 
           ...process.env, 
           GOOGLE_WORKSPACE_CLI_TOKEN: tokenData.access_token,
-          // Support for file-based keyring just in case, though token env var usually bypasses it
           GOOGLE_WORKSPACE_CLI_CONFIG_DIR: IS_WINDOWS ? undefined : '/tmp',
           GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND: 'file'
         }
     };
 
-    // 3. Execute
-    const { stdout, stderr } = await execPromise(`${gwsBin} ${command}`, envOptions);
+    console.log(`[runGwsCommand] Executing Discovery Method: ${resourcePath}`);
+    
+    const { stdout, stderr } = await execPromise(fullCommand, envOptions);
 
     if (stderr && stderr.length > 0) {
       console.warn(`gws stderr: ${stderr}`);
@@ -72,7 +95,7 @@ async function runGwsCommand(telegramId: string, command: string): Promise<strin
   } catch (error: any) {
     console.error(`Error executing gws command: ${error.message}`);
     const stderr = error.stderr ? `\n\nDetalles del error:\n${error.stderr}` : '';
-    return `Algo ha fallado al comunicarnos con Google: ${error.message}${stderr}`;
+    return `Algo ha fallado al comunicarnos con Google Workspace (${resourcePath}): ${error.message}${stderr}`;
   }
 }
 
@@ -85,26 +108,28 @@ function handleAuthError(telegramId: string, messagePrefix: string) {
 }
 
 // -----------------------------------------------------------------------------
-// GENERIC TOOL
+// GENERIC TOOL 
 // -----------------------------------------------------------------------------
 
 const gwsExecuteDef: ToolDefinition = {
     name: 'gws_execute',
-    description: 'Execute any Google Workspace command using the gws CLI. Use this for advanced operations across Gmail, Drive, Calendar, Sheets, Docs, Slides, and Admin.',
+    description: 'Execute any Google Workspace command. Params: resourcePath (e.g. "calendar events list"), params (JSON object for URL params), body (JSON object for request body).',
     parameters: {
         type: 'object',
         properties: {
-            command: { type: 'string', description: 'The GWS command to run (e.g., "drive files list --max 5")' }
+            resourcePath: { type: 'string', description: 'The GWS resource path (e.g., "calendar events list")' },
+            params: { type: 'object', description: 'URL parameters' },
+            body: { type: 'object', description: 'Request body' }
         },
-        required: ['command']
+        required: ['resourcePath']
     }
 };
 
 registerTool({
     definition: gwsExecuteDef,
-    execute: async ({ command }, { telegramId }) => {
+    execute: async ({ resourcePath, params = {}, body = null }, { telegramId }) => {
         try {
-            return await runGwsCommand(String(telegramId), command);
+            return await runGwsCommand(String(telegramId), resourcePath, params, body);
         } catch (e: any) {
             if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
                 return handleAuthError(String(telegramId), 'Cuenta de Google no conectada');
@@ -118,71 +143,43 @@ registerTool({
 // GMAIL TOOLS
 // -----------------------------------------------------------------------------
 
-const gmailSearchDef: ToolDefinition = {
-  name: 'gmail_search',
-  description: 'Search for emails in Gmail.',
-  parameters: {
-    type: 'object',
-    properties: {
-      query: { type: 'string', description: 'Search query' },
-      max: { type: 'number', description: 'Max results' }
-    },
-    required: ['query']
-  }
-};
-
 registerTool({
-  definition: gmailSearchDef,
+  definition: {
+    name: 'gmail_search',
+    description: 'Search for emails in Gmail.',
+    parameters: {
+      type: 'object',
+      properties: { query: { type: 'string' }, max: { type: 'number' } },
+      required: ['query']
+    }
+  },
   execute: async ({ query, max = 10 }, { telegramId }) => {
     try {
-      return await runGwsCommand(String(telegramId), `gmail search "${query}" --max ${max} --json`);
+      return await runGwsCommand(String(telegramId), 'gmail users messages list', { q: query, maxResults: max, userId: 'me' });
     } catch (e: any) {
-      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-        return handleAuthError(String(telegramId), 'No puedo leer tus correos');
-      }
+      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo leer Gmail');
       throw e;
     }
   }
 });
 
-const gmailSendDef: ToolDefinition = {
-  name: 'gmail_send',
-  description: 'Send an email via Gmail.',
-  parameters: {
-    type: 'object',
-    properties: {
-      to: { type: 'string', description: 'Recipient' },
-      subject: { type: 'string', description: 'Subject' },
-      body: { type: 'string', description: 'Content' }
-    },
-    required: ['to', 'subject', 'body']
-  }
-};
-
 registerTool({
-  definition: gmailSendDef,
+  definition: {
+    name: 'gmail_send',
+    description: 'Send an email via Gmail.',
+    parameters: {
+      type: 'object',
+      properties: { to: { type: 'string' }, subject: { type: 'string' }, body: { type: 'string' } },
+      required: ['to', 'subject', 'body']
+    }
+  },
   execute: async ({ to, subject, body }, { telegramId }) => {
     try {
-      const tokenData = await getValidToken(String(telegramId));
-      if (!tokenData) throw new Error('GOOGLE_ACCOUNT_NOT_CONNECTED');
-
-      const gwsBin = ensureGwsBinary();
-      const output = execSync(`${gwsBin} gmail send --to "${to}" --subject "${subject}" --body-file -`, {
-        input: body,
-        encoding: 'utf-8',
-        env: { 
-          ...process.env, 
-          GOOGLE_WORKSPACE_CLI_TOKEN: tokenData.access_token,
-          GOOGLE_WORKSPACE_CLI_CONFIG_DIR: IS_WINDOWS ? undefined : '/tmp',
-          GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND: 'file'
-        }
-      });
-      return output || 'Email sent successfully.';
-    } catch (error: any) {
-        if (error.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-          return handleAuthError(String(telegramId), 'No puedo enviar el correo');
-        }
-        return `Error sending email: ${error.message}`;
+      const raw = Buffer.from(`To: ${to}\nSubject: ${subject}\n\n${body}`).toString('base64url');
+      return await runGwsCommand(String(telegramId), 'gmail users messages send', { userId: 'me' }, { raw });
+    } catch (e: any) {
+      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo enviar correos');
+      throw e;
     }
   }
 });
@@ -191,58 +188,42 @@ registerTool({
 // CALENDAR TOOLS
 // -----------------------------------------------------------------------------
 
-const calendarListDef: ToolDefinition = {
-  name: 'calendar_list_events',
-  description: 'List calendar events.',
-  parameters: {
-    type: 'object',
-    properties: {
-      calendarId: { type: 'string', description: 'ID of calendar (e.g. "primary")' },
-      from: { type: 'string', description: 'ISO Start date' },
-      to: { type: 'string', description: 'ISO End date' }
-    },
-    required: ['calendarId', 'from', 'to']
-  }
-};
-
 registerTool({
-  definition: calendarListDef,
+  definition: {
+    name: 'calendar_list_events',
+    description: 'List calendar events.',
+    parameters: {
+      type: 'object',
+      properties: { calendarId: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } },
+      required: ['calendarId', 'from', 'to']
+    }
+  },
   execute: async ({ calendarId, from, to }, { telegramId }) => {
     try {
-      return await runGwsCommand(String(telegramId), `calendar events "${calendarId}" --from "${from}" --to "${to}" --json`);
+      return await runGwsCommand(String(telegramId), 'calendar events list', { calendarId, timeMin: from, timeMax: to });
     } catch (e: any) {
-      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-        return handleAuthError(String(telegramId), 'Calendario no disponible');
-      }
+      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'Calendario no disponible');
       throw e;
     }
   }
 });
 
-const calendarCreateDef: ToolDefinition = {
-  name: 'calendar_create_event',
-  description: 'Create a calendar event.',
-  parameters: {
-    type: 'object',
-    properties: {
-      calendarId: { type: 'string', description: 'ID of calendar' },
-      summary: { type: 'string', description: 'Summary/Title' },
-      from: { type: 'string', description: 'ISO Start' },
-      to: { type: 'string', description: 'ISO End' }
-    },
-    required: ['calendarId', 'summary', 'from', 'to']
-  }
-};
-
 registerTool({
-  definition: calendarCreateDef,
+  definition: {
+    name: 'calendar_create_event',
+    description: 'Create a calendar event.',
+    parameters: {
+      type: 'object',
+      properties: { calendarId: { type: 'string' }, summary: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } },
+      required: ['calendarId', 'summary', 'from', 'to']
+    }
+  },
   execute: async ({ calendarId, summary, from, to }, { telegramId }) => {
     try {
-      return await runGwsCommand(String(telegramId), `calendar create "${calendarId}" --summary "${summary}" --from "${from}" --to "${to}" --json`);
+      const body = { summary, start: { dateTime: from }, end: { dateTime: to } };
+      return await runGwsCommand(String(telegramId), 'calendar events insert', { calendarId }, body);
     } catch (e: any) {
-      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-        return handleAuthError(String(telegramId), 'No puedo crear el evento');
-      }
+      if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo crear eventos');
       throw e;
     }
   }
@@ -252,110 +233,69 @@ registerTool({
 // DRIVE / DOCS / SHEETS TOOLS
 // -----------------------------------------------------------------------------
 
-const docsCatDef: ToolDefinition = {
-    name: 'docs_get_content',
-    description: 'Get the text content of a Google Doc.',
-    parameters: {
-      type: 'object',
-      properties: {
-        docId: { type: 'string', description: 'The Document ID' }
-      },
-      required: ['docId']
-    }
-};
-
 registerTool({
-    definition: docsCatDef,
+    definition: {
+      name: 'docs_get_content',
+      description: 'Get the content of a Google Doc.',
+      parameters: { type: 'object', properties: { docId: { type: 'string' } }, required: ['docId'] }
+    },
     execute: async ({ docId }, { telegramId }) => {
       try {
-        return await runGwsCommand(String(telegramId), `docs cat "${docId}"`);
+        return await runGwsCommand(String(telegramId), 'docs documents get', { documentId: docId });
       } catch (e: any) {
-        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-          return handleAuthError(String(telegramId), 'No puedo leer este Documento');
-        }
+        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo leer el Documento');
         throw e;
       }
     }
 });
 
-const sheetsGetDef: ToolDefinition = {
-    name: 'sheets_get',
-    description: 'Get values from a Google Sheet spreadsheet.',
-    parameters: {
-      type: 'object',
-      properties: {
-        sheetId: { type: 'string', description: 'The Spreadsheet ID' },
-        range: { type: 'string', description: 'The range (e.g., "Sheet1!A1:D10")' }
-      },
-      required: ['sheetId', 'range']
-    }
-};
-
 registerTool({
-    definition: sheetsGetDef,
+    definition: {
+      name: 'sheets_get',
+      description: 'Get values from a Google Sheet spreadsheet.',
+      parameters: { type: 'object', properties: { sheetId: { type: 'string' }, range: { type: 'string' } }, required: ['sheetId', 'range'] }
+    },
     execute: async ({ sheetId, range }, { telegramId }) => {
       try {
-        return await runGwsCommand(String(telegramId), `sheets get "${sheetId}" "${range}" --json`);
+        return await runGwsCommand(String(telegramId), 'sheets spreadsheets values get', { spreadsheetId: sheetId, range });
       } catch (e: any) {
-        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-          return handleAuthError(String(telegramId), 'No puedo leer esta Hoja');
-        }
+        if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo leer la Hoja');
         throw e;
       }
     }
 });
 
 // -----------------------------------------------------------------------------
-// NEW TOOLS (SLIDES, ADMIN, ETC.)
+// SLIDES / ADMIN TOOLS
 // -----------------------------------------------------------------------------
 
-const slidesCreateDef: ToolDefinition = {
-    name: 'slides_create',
-    description: 'Create a new Google Slides presentation.',
-    parameters: {
-        type: 'object',
-        properties: {
-            title: { type: 'string', description: 'The title of the presentation' }
-        },
-        required: ['title']
-    }
-};
-
 registerTool({
-    definition: slidesCreateDef,
+    definition: {
+        name: 'slides_create',
+        description: 'Create a new presentation.',
+        parameters: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] }
+    },
     execute: async ({ title }, { telegramId }) => {
         try {
-            return await runGwsCommand(String(telegramId), `slides presentations create --title "${title}" --json`);
+            return await runGwsCommand(String(telegramId), 'slides presentations create', {}, { title });
         } catch (e: any) {
-            if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-                return handleAuthError(String(telegramId), 'No puedo crear presentaciones');
-            }
+            if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo crear presentaciones');
             throw e;
         }
     }
 });
 
-const adminListUsersDef: ToolDefinition = {
-    name: 'admin_list_users',
-    description: 'List users in the Google Workspace domain (requires Admin privileges).',
-    parameters: {
-        type: 'object',
-        properties: {
-            domain: { type: 'string', description: 'Optional domain to filter' }
-        }
-    }
-};
-
 registerTool({
-    definition: adminListUsersDef,
+    definition: {
+        name: 'admin_list_users',
+        description: 'List Workspace users.',
+        parameters: { type: 'object', properties: { domain: { type: 'string' } } }
+    },
     execute: async ({ domain }, { telegramId }) => {
         try {
-            const domainFlag = domain ? `--domain "${domain}"` : '';
-            return await runGwsCommand(String(telegramId), `admin directory users list ${domainFlag} --json`);
+            return await runGwsCommand(String(telegramId), 'admin directory users list', { domain });
         } catch (e: any) {
-            if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-                return handleAuthError(String(telegramId), 'No puedo acceder al panel de administración');
-            }
+            if (e.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'Admin no disponible');
             throw e;
         }
     }
@@ -365,62 +305,31 @@ registerTool({
 // INTERACTIVE TOOLS
 // -----------------------------------------------------------------------------
 
-const openWorkspaceAppDef: ToolDefinition = {
-    name: 'og_open_workspace_app',
-    description: 'Opens a Google Doc or Sheet in an interactive Mini App for viewing and AI interaction.',
-    parameters: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'The Document or Spreadsheet ID' },
-        type: { type: 'string', enum: ['doc', 'sheet'], description: 'Type of file' },
-        title: { type: 'string', description: 'Title of the document' }
-      },
-      required: ['id', 'type', 'title']
-    }
-};
-
 registerTool({
-    definition: openWorkspaceAppDef,
+    definition: {
+      name: 'og_open_workspace_app',
+      description: 'Opens a Google Doc or Sheet in an interactive Mini App.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string' }, type: { type: 'string', enum: ['doc', 'sheet'] }, title: { type: 'string' } },
+        required: ['id', 'type', 'title']
+      }
+    },
     execute: async ({ id, type, title }, { telegramId }) => {
         try {
             if (!telegramId) throw new Error('CONTEXT_MISSING_TELEGRAM_ID');
-            
-            // 1. Fetch content
-            const content = await runGwsCommand(String(telegramId), type === 'doc' ? `docs cat "${id}"` : `sheets get "${id}" "A1:Z100" --json`);
-            
-            // 2. Generate a unique snapshot ID
-            const snapshotId = Math.random().toString(36).substring(2, 15);
-            
-            // 3. Save as a snapshot in Knowledge Hub
+            const content = await runGwsCommand(String(telegramId), type === 'doc' ? 'docs documents get' : 'sheets spreadsheets values get', type === 'doc' ? { documentId: id } : { spreadsheetId: id, range: 'A1:Z100' });
+            const snapshotId = Math.random().toString(36).substring(2, 10);
             const knowledgeApi = `${env.CLIENTVERSE_API_URL}/api/opengravity/knowledge.php`;
-            const token = 'og_secret_default_key_2026'; // Should be in env.KNOWLEDGE_HUB_API_KEY if exists
-            
-            console.log(`[og_open_workspace_app] Saving to Knowledge Hub for user ${telegramId}...`);
             await fetch(knowledgeApi, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    telegram_id: telegramId,
-                    topic: snapshotId,
-                    content: content,
-                    category: 'document',
-                    metadata: { original_title: title, original_id: id, type: type }
-                })
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer og_secret_default_key_2026` },
+                body: JSON.stringify({ telegram_id: telegramId, topic: snapshotId, content, category: 'document', metadata: { original_title: title, original_id: id, type } })
             });
-
-            // 4. Return the Mini App link
-            const miniAppUrl = `${env.PERSONAL_BRAND_HUB_BASE_URL}/workspace/${snapshotId}`;
-            return `Documento procesado correctamente. Puedes interactuar con él aquí:\n\n[TELEGRAM_WEB_APP:${miniAppUrl}]`;
-        
+            return `Documento procesado. Ábrelo aquí:\n\n[TELEGRAM_WEB_APP:${env.PERSONAL_BRAND_HUB_BASE_URL}/workspace/${snapshotId}]`;
         } catch (error: any) {
-            console.error(`[og_open_workspace_app] Error:`, error);
-            if (error.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') {
-                return handleAuthError(String(telegramId), 'No puedo abrir el archivo');
-            }
-            return `No he podido abrir el archivo de forma interactiva: ${error.message}`;
+            if (error.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo abrir el archivo');
+            return `Error: ${error.message}`;
         }
     }
 });
