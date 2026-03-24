@@ -1,7 +1,7 @@
 import { bot } from './bot/telegram.js';
 import { initDatabase } from './memory/api.js';
 
-console.log('Starting OpenGravity...'); // FINAL FINAL FINAL: Added refresh_token & email to gog import
+console.log('Starting OpenGravity... [v0.19.1 - Ghost Deploy: 2026-03-24]'); // FINAL: GWS CLI + Async Architecture READY
 
 // Initialize database before starting bot
 await initDatabase();
