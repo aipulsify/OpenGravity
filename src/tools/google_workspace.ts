@@ -373,7 +373,8 @@ registerTool({
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer og_secret_default_key_2026` },
                 body: JSON.stringify({ telegram_id: telegramId, topic: snapshotId, content, category: 'document', metadata: { original_title: title, original_id: id, type } })
             });
-            return `Documento procesado. Ábrelo aquí:\n\n[TELEGRAM_WEB_APP:${env.PERSONAL_BRAND_HUB_BASE_URL}/workspace/${snapshotId}]`;
+            const baseUrl = env.VITE_WORKSPACE_VIEWER_URL.replace(/\/$/, '');
+            return `Documento procesado. Ábrelo aquí:\n\n[TELEGRAM_WEB_APP:${baseUrl}/workspace/${snapshotId}]`;
         } catch (error: any) {
             if (error.message === 'GOOGLE_ACCOUNT_NOT_CONNECTED') return handleAuthError(String(telegramId), 'No puedo abrir el archivo');
             return `Error: ${error.message}`;
