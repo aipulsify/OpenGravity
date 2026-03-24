@@ -1,13 +1,12 @@
 import { registerTool, type ToolDefinition } from '../agent/tools.js';
 import { getValidToken } from '../memory/google_tokens.js';
 import { env } from '../config/env.js';
-import { exec, execSync } from 'child_process';
-import { promisify } from 'util';
+import { execSync, spawn } from 'child_process';
 import { platform } from 'os';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
-const execPromise = promisify(exec);
+
 
 // Determine gws binary path based on OS
 const IS_WINDOWS = platform() === 'win32';
@@ -45,32 +44,83 @@ function escapeJsonArg(json: string): string {
 
 /**
  * Executes a gws command with user-specific authentication.
+ * Uses spawn (process-based) instead of exec (shell-based) to handle large payloads.
  */
-async function runGwsCommand(telegramId: string, resourcePath: string, params: object = {}, body: object | null = null): Promise<string> {
+export async function runGwsCommand(telegramId: string, resourcePath: string, params: object = {}, body: object | null = null): Promise<string> {
   const gwsBin = ensureGwsBinary();
   const tokenData = await getValidToken(telegramId);
   if (!tokenData) throw new Error('GOOGLE_ACCOUNT_NOT_CONNECTED');
 
-  try {
-    let fullCommand = `${gwsBin} ${resourcePath}`;
-    if (Object.keys(params).length > 0) fullCommand += ` --params ${escapeJsonArg(JSON.stringify(params))}`;
-    if (body) fullCommand += ` --json ${escapeJsonArg(JSON.stringify(body))}`;
+  return new Promise((resolve, reject) => {
+    // 1. Build arguments array for spawn
+    const args = resourcePath.split(' ');
+    
+    if (Object.keys(params).length > 0) {
+        args.push('--params', JSON.stringify(params));
+    }
+    
+    if (body) {
+        args.push('--json', JSON.stringify(body));
+    }
 
+    // 2. Set environment variables
     const envOptions = {
-        env: { ...process.env, GOOGLE_WORKSPACE_CLI_TOKEN: tokenData.access_token, GOOGLE_WORKSPACE_CLI_CONFIG_DIR: IS_WINDOWS ? undefined : '/tmp', GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND: 'file' }
+        env: { 
+            ...process.env, 
+            GOOGLE_WORKSPACE_CLI_TOKEN: tokenData.access_token, 
+            GOOGLE_WORKSPACE_CLI_CONFIG_DIR: IS_WINDOWS ? undefined : '/tmp', 
+            GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND: 'file' 
+        }
     };
 
-    console.log(`[runGwsCommand] Executing: ${resourcePath} | Params: ${JSON.stringify(params)}`);
-    const { stdout, stderr } = await execPromise(fullCommand, envOptions);
-    if (stderr && stderr.length > 0) console.warn(`gws stderr: ${stderr}`);
+    console.log(`[runGwsCommand] Executing: ${gwsBin} ${args.join(' ').replace(tokenData.access_token, '***')}`);
     
-    console.log(`[runGwsCommand] Success. Response length: ${stdout.length}`);
-    return stdout || 'Command executed successfully.';
-  } catch (error: any) {
-    console.error(`Error executing gws command: ${error.message}`);
-    const stderr = error.stderr ? `\n\nDetalles del error:\n${error.stderr}` : '';
-    return `Algo ha fallado al comunicarnos con Google Workspace (${resourcePath}): ${error.message}${stderr}`;
-  }
+    const child = spawn(gwsBin, args, envOptions);
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => { stdout += data.toString(); });
+    child.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        console.log(`[runGwsCommand] Success. Response length: ${stdout.length}`);
+        resolve(stdout || 'Command executed successfully.');
+      } else {
+        console.error(`Error executing gws command (code ${code}): ${stderr}`);
+        const errorMsg = `Algo ha fallado al comunicarnos con Google Workspace (${resourcePath}): ${stderr}`;
+        resolve(errorMsg); // Resolve with error message for the LLM to handle
+      }
+    });
+
+    child.on('error', (err) => {
+      console.error(`Spawn error: ${err.message}`);
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Queues a task for asynchronous execution.
+ */
+async function queueTask(telegramId: string, type: string, payload: object): Promise<string> {
+    try {
+        const response = await fetch(`${env.CLIENTVERSE_API_URL}/api/opengravity/tasks.php`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer og_secret_default_key_2026` 
+            },
+            body: JSON.stringify({ telegram_id: telegramId, task_type: type, payload })
+        });
+        
+        if (!response.ok) throw new Error(`Tasks API Error: ${response.status}`);
+        const data: any = await response.json();
+        return `✅ **Tarea Encolada** (ID: ${data.task_id})\n\nEste proceso es asíncrono para evitar bloqueos. Te avisaré por Telegram cuando el documento esté listo.`;
+    } catch (error: any) {
+        console.error(`[queueTask] Error: ${error.message}`);
+        return `No pude encolar la tarea en este momento. Intenta de nuevo más tarde o revisa la conexión con ClientVerse.`;
+    }
 }
 
 /**
@@ -181,8 +231,19 @@ registerTool({
 
 registerTool({
     definition: {
+      name: 'docs_create_async',
+      description: 'Largo plazo: Crea un documento de Google y lo llena con contenido de forma asíncrona. Úsalo para informes largos o auditorías para evitar timeouts.',
+      parameters: { type: 'object', properties: { title: { type: 'string' }, content: { type: 'string' } }, required: ['title', 'content'] }
+    },
+    execute: async ({ title, content }, { telegramId }) => {
+        return await queueTask(String(telegramId), 'docs_create_with_content', { title, content });
+    }
+});
+
+registerTool({
+    definition: {
       name: 'docs_create',
-      description: 'Create a NEW blank Google Doc. Returns the documentId. To add content, use docs_append_text afterwards.',
+      description: 'Crea un documento de Google VACÍO con un título. Devuelve el documentId. Rápido y síncrono.',
       parameters: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] }
     },
     execute: async ({ title }, { telegramId }) => {
